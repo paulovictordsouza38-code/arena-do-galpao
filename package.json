@@ -1,0 +1,16 @@
+{
+  "name": "arena-do-galpao",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiro 2D multiplayer para a turma do serviço",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

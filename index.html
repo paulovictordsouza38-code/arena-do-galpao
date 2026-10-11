@@ -1,0 +1,777 @@
+<title>Arena do Galpão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: canvas em tela cheia, HUD sobreposto. Mapa grande (galpão, pátio e rua) com câmera seguindo o jogador. Visual escuro de propósito, igual nos dois temas. */
+:root {
+  --bg: #1b1e22;
+  --ink: #f2efe6;
+  --ink-dim: #a9a89f;
+  --accent: #ffb400;
+  --danger: #ff5a5f;
+  --ok: #3ddc97;
+  --panel: rgba(20, 22, 26, 0.74);
+  --line: rgba(255, 255, 255, 0.16);
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Barlow", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 14px;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; }
+#stats {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 8px;
+  width: 168px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+#name { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hpbar { height: 8px; background: rgba(255,255,255,0.14); border-radius: 4px; margin: 4px 0 6px; overflow: hidden; }
+#hpfill { display: block; height: 100%; width: 100%; background: var(--ok); transition: width 0.12s linear, background 0.12s linear; }
+#kd { font-family: var(--display); font-weight: 500; font-size: 15px; color: var(--ink-dim); letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+#kd b { color: var(--ink); font-weight: 700; }
+#rank { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); font-size: 12px; font-variant-numeric: tabular-nums; }
+#rank li { display: flex; justify-content: space-between; gap: 8px; line-height: 1.5; }
+#rank li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mini {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: 8px;
+  width: 120px;
+  height: 77px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+#status {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 92px);
+  right: 8px;
+  max-width: 150px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--ink-dim);
+  text-shadow: 0 1px 2px #000;
+}
+#feed {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: min(92vw, 420px);
+}
+#feed div { background: var(--panel); border-radius: 4px; padding: 3px 10px; font-size: 13px; text-align: center; }
+#dead {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 8px #000;
+}
+#dead strong { font-size: clamp(36px, 9vw, 72px); color: var(--danger); line-height: 1; }
+#dead span { font-size: 20px; color: var(--ink); }
+
+#intro {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(14, 16, 19, 0.72);
+  overflow-y: auto;
+}
+#card { width: min(100%, 400px); }
+#card h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(44px, 12vw, 68px);
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  text-wrap: balance;
+}
+#card h1 em { font-style: normal; color: var(--accent); }
+#card p { margin: 0 0 14px; line-height: 1.45; color: var(--ink-dim); max-width: 36ch; }
+#card label { display: block; font-family: var(--display); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; color: var(--ink-dim); margin-bottom: 4px; }
+#tabs { display: flex; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+.tab {
+  flex: 1;
+  font: 700 16px var(--display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.tab.on { color: var(--ink); border-bottom-color: var(--accent); }
+#auth { display: flex; flex-direction: column; gap: 4px; }
+#auth label { margin-top: 6px; }
+#err { min-height: 18px; margin-top: 8px; font-size: 13px; color: var(--danger); }
+#guest {
+  margin-top: 6px;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: 600 14px var(--body);
+  cursor: pointer;
+}
+#nick, #pass, #pass2 {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  font: 600 18px var(--body);
+  color: var(--ink);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+#nick:focus-visible, #pass:focus-visible, #pass2:focus-visible, #go:focus-visible, #guest:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#go {
+  font: 700 20px var(--display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1b1e22;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  padding: 12px 22px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+#go[disabled] { opacity: 0.6; cursor: default; }
+#conn { margin: 12px 0 0; font-size: 13px; color: var(--ink-dim); }
+#how { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+#how b { color: var(--ink); font-weight: 600; }
+</style>
+
+<canvas id="game"></canvas>
+
+<div id="hud" hidden>
+  <div id="stats">
+    <div id="name"></div>
+    <div id="hpbar"><i id="hpfill"></i></div>
+    <div id="kd"></div>
+    <ol id="rank"></ol>
+  </div>
+  <canvas id="mini" width="240" height="154"></canvas>
+  <div id="status"></div>
+  <div id="feed"></div>
+</div>
+
+<div id="dead" hidden>
+  <strong>Você caiu</strong>
+  <span>Voltando em <b id="cd">3</b></span>
+</div>
+
+<div id="intro">
+  <div id="card">
+    <h1>Arena do <em>Galpão</em></h1>
+    <p>Tiro 2D com a turma do serviço. Quem abrir esta página entra na mesma partida.</p>
+    <form id="auth">
+      <label for="nick">Seu nome (3 a 12 letras ou números)</label>
+      <input id="nick" maxlength="12" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ex.: giro">
+      <button id="go" type="submit">Entrar</button>
+      <div id="err" role="alert"></div>
+    </form>
+    <div id="conn">Conectando à sala…</div>
+    <div id="how">
+      <b>Computador:</b> WASD anda, mouse mira, clique atira.<br>
+      <b>Celular:</b> bolinha da esquerda anda, bolinha da direita mira e atira. Deixe o celular deitado.
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Constantes ----------
+  var W = 2800, H = 1800;
+  var PR = 14;                 // raio do jogador
+  var SPEED = 230;             // px/s
+  var BSPEED = 950, BLIFE = 0.75, DMG = 25, COOL = 0.2;
+  var PAL = ["#ff5a5f", "#ffb400", "#3ddc97", "#4cc9f0", "#b388ff", "#ff8fab", "#f77f00", "#90be6d"];
+
+  // ---------- Mapa ----------
+  var solids = [];
+  function R(x, y, w, h, t, c) { solids.push({ x: x, y: y, w: w, h: h, t: t, c: c || null }); }
+  var T = 40;
+  // bordas do mundo
+  R(0, 0, W, T, "wall"); R(0, H - T, W, T, "wall"); R(0, 0, T, H, "wall"); R(W - T, 0, T, H, "wall");
+  // galpão (x 240..1740, y 240..1240) com portas
+  var gx = 240, gy = 240, gw = 1500, gh = 1000;
+  R(gx, gy, 900 - gx, T, "wall"); R(1020, gy, gx + gw - 1020, T, "wall");
+  R(gx, gy + gh - T, 900 - gx, T, "wall"); R(1020, gy + gh - T, gx + gw - 1020, T, "wall");
+  R(gx, gy, T, 700 - gy, "wall"); R(gx, 820, T, gy + gh - 820, "wall");
+  R(gx + gw - T, gy, T, 400 - gy, "wall"); R(gx + gw - T, 520, T, 380, "wall"); R(gx + gw - T, 1020, T, gy + gh - 1020, "wall");
+  // prateleiras
+  for (var c = 0; c < 6; c++) { var sx = 340 + c * 230; R(sx, 330, 50, 300, "shelf"); R(sx, 760, 50, 300, "shelf"); }
+  // caixas dentro do galpão
+  R(1580, 330, 60, 60, "box"); R(1620, 420, 60, 60, "box"); R(1570, 560, 60, 60, "box");
+  R(1600, 880, 60, 60, "box"); R(1560, 990, 60, 60, "box");
+  R(520, 670, 60, 50, "box"); R(1100, 660, 60, 60, "box"); R(760, 690, 50, 50, "box");
+  // pátio: contêineres, vans e caixas
+  R(1900, 320, 220, 80, "container", "#c0504d"); R(2200, 320, 220, 80, "container", "#3d7ea6");
+  R(1900, 1100, 220, 80, "container", "#e0a030"); R(2250, 1090, 220, 80, "container", "#5a8f5a");
+  R(1900, 560, 140, 70, "van"); R(2100, 560, 140, 70, "van"); R(2020, 780, 70, 140, "van");
+  R(2300, 700, 60, 60, "box"); R(2380, 780, 60, 60, "box"); R(1860, 900, 60, 60, "box"); R(2200, 900, 60, 60, "box");
+  // rua: vans estacionadas e guarita
+  R(300, 1400, 140, 70, "van"); R(700, 1400, 140, 70, "van"); R(1100, 1400, 140, 70, "van");
+  R(1700, 1520, 140, 70, "van"); R(2200, 1450, 140, 70, "van");
+  R(600, 100, 140, 70, "van"); R(1400, 100, 140, 70, "van"); R(2200, 100, 140, 70, "van");
+  R(100, 500, 70, 140, "van"); R(100, 1000, 70, 140, "van");
+  R(2620, 600, 70, 140, "van"); R(2620, 1100, 70, 140, "van");
+  R(1800, 1300, 120, 100, "wall");
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function circleHit(x, y, r) {
+    for (var i = 0; i < solids.length; i++) {
+      var s = solids[i];
+      if (x + r > s.x && x - r < s.x + s.w && y + r > s.y && y - r < s.y + s.h) {
+        var dx = x - clamp(x, s.x, s.x + s.w), dy = y - clamp(y, s.y, s.y + s.h);
+        if (dx * dx + dy * dy < r * r) return true;
+      }
+    }
+    return false;
+  }
+  function pointHit(x, y) {
+    for (var i = 0; i < solids.length; i++) {
+      var s = solids[i];
+      if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h) return true;
+    }
+    return false;
+  }
+
+  // ---------- Canvas ----------
+  var cv = document.getElementById("game");
+  var ctx = cv.getContext("2d");
+  var vw = 0, vh = 0, dpr = 1, scale = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    vw = window.innerWidth; vh = window.innerHeight;
+    cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr);
+    scale = Math.min(1, Math.max(0.55, Math.min(vw / 800, vh / 500)));
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // minimapa: parte estática pré-desenhada
+  var mini = document.getElementById("mini"), mctx = mini.getContext("2d");
+  var MS = mini.width / W;
+  var miniBase = document.createElement("canvas");
+  miniBase.width = mini.width; miniBase.height = mini.height;
+  (function () {
+    var m = miniBase.getContext("2d");
+    m.scale(MS, MS);
+    m.fillStyle = "#34383d"; m.fillRect(0, 0, W, H);
+    m.fillStyle = "#6e726c"; m.fillRect(1760, 200, 780, 1080);
+    m.fillStyle = "#c9c2b0"; m.fillRect(gx, gy, gw, gh);
+    for (var i = 0; i < solids.length; i++) {
+      var s = solids[i];
+      m.fillStyle = s.t === "wall" ? "#4b5058" : s.t === "shelf" ? "#2f5d8a" : s.t === "van" ? "#e9ecef" : s.t === "container" ? s.c : "#b98b55";
+      m.fillRect(s.x, s.y, s.w, s.h);
+    }
+  })();
+
+  // ---------- Estado ----------
+  var myPeer = null, started = false;
+  var me = { x: 140, y: 140, a: 0, hp: 100, alive: true, kills: 0, deaths: 0, inv: 0, cool: 0, flash: 0, respawn: 0, name: "Jogador", ci: 0 };
+  var bullets = [], sparks = [];
+  var sm = new Map();           // posições suavizadas dos outros jogadores
+  var keys = new Set();
+  var mouse = { x: 0, y: 0, down: false, used: false };
+  var sticks = { move: { id: null, ox: 0, oy: 0, x: 0, y: 0 }, aim: { id: null, ox: 0, oy: 0, x: 0, y: 0 } };
+  var cam = { x: 0, y: 0 };
+  var audio = null;
+
+  // ---------- Som ----------
+  function beep(f, d, type, vol) {
+    if (!audio) return;
+    try {
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.type = type; o.frequency.value = f;
+      g.gain.setValueAtTime(vol, audio.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + d);
+      o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + d);
+    } catch (e) {}
+  }
+
+  // ---------- Sala (multiplayer) ----------
+  function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+  function safeName(v) { return String(v == null ? "Jogador" : v).replace(/[^\p{L}\p{N} ._-]/gu, "").slice(0, 12) || "Jogador"; }
+  function feed(text) {
+    var f = document.getElementById("feed");
+    var d = document.createElement("div");
+    d.textContent = text;
+    f.appendChild(d);
+    while (f.children.length > 4) f.removeChild(f.firstChild);
+    setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 4500);
+  }
+
+  // ---------- Rede (WebSocket) ----------
+  var noop = function () {};
+  var sid = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  var ws = null, wsOpen = false, netPlayers = [], online = 0, creds = null, authWait = null, retryT = null, connectStart = Date.now();
+  function remotes() {
+    var out = [];
+    for (var i = 0; i < netPlayers.length; i++) {
+      var p = netPlayers[i];
+      if (p && p.id !== myPeer && typeof p.x === "number" && typeof p.y === "number") out.push({ peer: p.id, presence: p });
+    }
+    return out;
+  }
+  function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+  function scheduleRetry() { if (retryT) return; retryT = setTimeout(function () { retryT = null; connect(); }, 2000); }
+  function connect() {
+    var proto = location.protocol === "https:" ? "wss://" : "ws://";
+    connectStart = Date.now();
+    var mine;
+    try { mine = ws = new WebSocket(proto + location.host); } catch (e) { scheduleRetry(); return; }
+    mine.onopen = function () {
+      wsOpen = true;
+      if (creds && started) send({ t: "auth", name: creds.name, sid: sid, re: 1 });
+    };
+    mine.onmessage = function (ev) { var m; try { m = JSON.parse(ev.data); } catch (e) { return; } if (m && typeof m === "object") onNet(m); };
+    mine.onclose = function () { if (ws !== mine) return; wsOpen = false; netPlayers = []; scheduleRetry(); };
+    mine.onerror = noop;
+  }
+  function onNet(m) {
+    if (m.t === "hello") { online = m.online | 0; }
+    else if (m.t === "auth") {
+      if (m.re) { if (m.ok) { myPeer = m.id; me.ci = m.ci | 0; } return; }
+      if (authWait) {
+        var w = authWait; authWait = null; clearTimeout(w.timer);
+        if (m.ok) w.resolve(m); else w.reject({ msg: String(m.err || "Não deu certo.") });
+      }
+    } else if (m.t === "snap") {
+      netPlayers = Array.isArray(m.p) ? m.p : [];
+      for (var i = 0; i < netPlayers.length; i++) {
+        var p = netPlayers[i];
+        if (p && p.id === myPeer) { me.kills = p.k | 0; me.deaths = p.d | 0; me.ci = (p.ci | 0) % PAL.length; }
+      }
+    } else if (m.t === "shot") {
+      if (m.id === myPeer || typeof m.x !== "number" || typeof m.y !== "number" || typeof m.a !== "number") return;
+      bullets.push({ x: m.x, y: m.y, vx: Math.cos(m.a) * BSPEED, vy: Math.sin(m.a) * BSPEED, t: BLIFE, own: false, peer: m.id });
+      beep(150, 0.05, "square", 0.03);
+    } else if (m.t === "kill") {
+      feed(safeName(m.k) + " eliminou " + safeName(m.v));
+      if (m.kid && m.kid === myPeer) beep(660, 0.12, "triangle", 0.08);
+    } else if (m.t === "kicked") {
+      creds = null; feed("Sua conta entrou em outro aparelho.");
+    }
+  }
+  function doAuth(name) {
+    return new Promise(function (resolve, reject) {
+      if (!wsOpen) { reject({ msg: "Ainda conectando ao servidor. Aguarde alguns segundos." }); return; }
+      authWait = { resolve: resolve, reject: reject, timer: setTimeout(function () { authWait = null; reject({ msg: "O servidor demorou para responder. Tente de novo." }); }, 10000) };
+      send({ t: "auth", name: name, sid: sid });
+    });
+  }
+
+  // ---------- Entrada ----------
+  window.addEventListener("keydown", function (e) {
+    if (!started) return;
+    keys.add(e.code);
+    if (e.code === "Space" || e.code.indexOf("Arrow") === 0) e.preventDefault();
+  });
+  window.addEventListener("keyup", function (e) { keys.delete(e.code); });
+  window.addEventListener("blur", function () { keys.clear(); mouse.down = false; });
+  cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+  function stickMove(s, e) {
+    var dx = e.clientX - s.ox, dy = e.clientY - s.oy, len = Math.hypot(dx, dy), max = 60;
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    s.x = dx / max; s.y = dy / max;
+  }
+  cv.addEventListener("pointerdown", function (e) {
+    if (!started) return;
+    if (e.pointerType === "mouse") {
+      mouse.down = true; mouse.used = true; mouse.x = e.clientX; mouse.y = e.clientY;
+    } else {
+      var s = e.clientX < vw / 2 ? sticks.move : sticks.aim;
+      if (s.id === null) { s.id = e.pointerId; s.ox = e.clientX; s.oy = e.clientY; s.x = 0; s.y = 0; mouse.used = false; }
+    }
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  cv.addEventListener("pointermove", function (e) {
+    if (e.pointerType === "mouse") { mouse.x = e.clientX; mouse.y = e.clientY; mouse.used = true; return; }
+    if (sticks.move.id === e.pointerId) stickMove(sticks.move, e);
+    else if (sticks.aim.id === e.pointerId) stickMove(sticks.aim, e);
+  });
+  function release(e) {
+    if (e.pointerType === "mouse") { mouse.down = false; return; }
+    if (sticks.move.id === e.pointerId) { sticks.move.id = null; sticks.move.x = sticks.move.y = 0; }
+    if (sticks.aim.id === e.pointerId) { sticks.aim.id = null; sticks.aim.x = sticks.aim.y = 0; }
+  }
+  cv.addEventListener("pointerup", release);
+  cv.addEventListener("pointercancel", release);
+
+  // ---------- Início ----------
+  var nick = document.getElementById("nick");
+  var form = document.getElementById("auth"), go = document.getElementById("go"), errEl = document.getElementById("err");
+  try { var saved = localStorage.getItem("arena-nick"); if (saved) nick.value = saved; } catch (e) {}
+
+  var busy = false;
+  function setErr(t) { errEl.textContent = t; }
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var name = nick.value.trim();
+    if (!/^[A-Za-z0-9_-]{3,12}$/.test(name)) { setErr("Use de 3 a 12 letras, números, _ ou -, sem espaço."); return; }
+    busy = true; go.disabled = true; setErr("");
+    try {
+      var r = await doAuth(name);
+      creds = { name: name };
+      myPeer = r.id; me.ci = (r.ci | 0) % PAL.length;
+      enter(String(r.name || name), { kills: r.k | 0, deaths: r.d | 0 });
+    } catch (err) {
+      setErr(err && err.msg ? err.msg : "Não deu certo. Tente de novo.");
+    }
+    busy = false; go.disabled = false;
+  });
+  function enter(name, stats) {
+    try { localStorage.setItem("arena-nick", name); } catch (e) {}
+    start(name, stats);
+  }
+
+  function start(name, stats) {
+    me.name = safeName(name);
+    if (stats) { me.kills = stats.kills; me.deaths = stats.deaths; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+    document.getElementById("intro").hidden = true;
+    document.getElementById("hud").hidden = false;
+    document.getElementById("name").textContent = me.name;
+    var sp = pickSpawn(); me.x = sp.x; me.y = sp.y; me.hp = 100; me.alive = true; me.inv = 2;
+    started = true;
+  }
+
+  function pickSpawn() {
+    var best = null, bd = -1, rs = remotes();
+    for (var i = 0; i < 30; i++) {
+      var x = 80 + Math.random() * (W - 160), y = 80 + Math.random() * (H - 160);
+      if (circleHit(x, y, 26)) continue;
+      var d = 1e9;
+      for (var j = 0; j < rs.length; j++) d = Math.min(d, Math.hypot(rs[j].presence.x - x, rs[j].presence.y - y));
+      if (d > bd) { bd = d; best = { x: x, y: y }; }
+    }
+    return best || { x: 140, y: 140 };
+  }
+
+  // ---------- Jogo ----------
+  function shoot() {
+    var ca = Math.cos(me.a), sa = Math.sin(me.a);
+    var bx = me.x + ca * 20, by = me.y + sa * 20;
+    bullets.push({ x: bx, y: by, vx: ca * BSPEED, vy: sa * BSPEED, t: BLIFE, own: true, peer: myPeer });
+    beep(190, 0.05, "square", 0.04);
+    send({ t: "shot", x: Math.round(bx), y: Math.round(by), a: Math.round(me.a * 100) / 100 });
+  }
+  function die(killerPeer) {
+    me.alive = false; me.respawn = 3; me.hp = 0;
+    beep(90, 0.3, "sawtooth", 0.08);
+    document.getElementById("dead").hidden = false;
+    send({ t: "kill", killer: killerPeer });
+  }
+
+  function update(dt) {
+    if (started) {
+      if (me.alive) {
+        var mx = 0, my = 0;
+        if (keys.has("KeyW") || keys.has("ArrowUp")) my -= 1;
+        if (keys.has("KeyS") || keys.has("ArrowDown")) my += 1;
+        if (keys.has("KeyA") || keys.has("ArrowLeft")) mx -= 1;
+        if (keys.has("KeyD") || keys.has("ArrowRight")) mx += 1;
+        mx += sticks.move.x; my += sticks.move.y;
+        var len = Math.hypot(mx, my);
+        if (len > 1) { mx /= len; my /= len; }
+        var nx = me.x + mx * SPEED * dt, ny = me.y + my * SPEED * dt;
+        if (!circleHit(nx, me.y, PR)) me.x = nx;
+        if (!circleHit(me.x, ny, PR)) me.y = ny;
+        var am = Math.hypot(sticks.aim.x, sticks.aim.y);
+        var firing = mouse.down || keys.has("Space");
+        if (sticks.aim.id !== null && am > 0.15) { me.a = Math.atan2(sticks.aim.y, sticks.aim.x); if (am > 0.3) firing = true; }
+        else if (mouse.used) { me.a = Math.atan2(mouse.y - (me.y - cam.y) * scale, mouse.x - (me.x - cam.x) * scale); }
+        me.cool -= dt;
+        if (firing && me.cool <= 0) { shoot(); me.cool = COOL; }
+      } else {
+        me.respawn -= dt;
+        document.getElementById("cd").textContent = String(Math.max(1, Math.ceil(me.respawn)));
+        if (me.respawn <= 0) {
+          var sp = pickSpawn(); me.x = sp.x; me.y = sp.y; me.hp = 100; me.alive = true; me.inv = 2;
+          document.getElementById("dead").hidden = true;
+        }
+      }
+      me.inv -= dt; me.flash -= dt;
+    }
+
+    // suaviza os outros jogadores
+    var rs = remotes(), seen = new Set(), k = 1 - Math.exp(-dt * 14);
+    for (var j = 0; j < rs.length; j++) {
+      var p = rs[j], pr = p.presence, s = sm.get(p.peer);
+      if (!s) { s = { x: pr.x, y: pr.y, a: pr.a || 0 }; sm.set(p.peer, s); }
+      s.x += (pr.x - s.x) * k; s.y += (pr.y - s.y) * k; s.a = lerpA(s.a, pr.a || 0, k);
+      seen.add(p.peer);
+    }
+    if (sm.size > rs.length) sm.forEach(function (v, key) { if (!seen.has(key)) sm.delete(key); });
+
+    // balas
+    for (var b = bullets.length - 1; b >= 0; b--) {
+      var bl = bullets[b];
+      bl.t -= dt; bl.x += bl.vx * dt; bl.y += bl.vy * dt;
+      var gone = bl.t <= 0;
+      if (!gone && pointHit(bl.x, bl.y)) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.18 }); }
+      if (!gone) {
+        for (var q = 0; q < rs.length; q++) {
+          var rp = rs[q];
+          if (rp.peer === bl.peer || rp.presence.al === 0) continue;
+          var sp2 = sm.get(rp.peer);
+          if (sp2 && Math.hypot(sp2.x - bl.x, sp2.y - bl.y) < PR + 3) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 }); break; }
+        }
+      }
+      if (!gone && !bl.own && started && me.alive && me.inv <= 0 && Math.hypot(me.x - bl.x, me.y - bl.y) < PR + 3) {
+        gone = true; me.hp -= DMG; me.flash = 0.25; beep(110, 0.12, "sawtooth", 0.07);
+        sparks.push({ x: bl.x, y: bl.y, t: 0.2 });
+        if (me.hp <= 0) die(bl.peer);
+      }
+      if (gone) bullets.splice(b, 1);
+    }
+    for (var n = sparks.length - 1; n >= 0; n--) { sparks[n].t -= dt; if (sparks[n].t <= 0) sparks.splice(n, 1); }
+  }
+  function lerpA(a, b, k) {
+    var d = (((b - a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    return a + d * k;
+  }
+
+  // ---------- Desenho ----------
+  function boxColor(i, x) { var v = (i * 7 + (x | 0)) % 3; return v === 0 ? "#b98b55" : v === 1 ? "#a87a47" : "#c99c62"; }
+  function drawSolid(s) {
+    var x = s.x, y = s.y, w = s.w, h = s.h;
+    if (s.t === "wall") {
+      ctx.fillStyle = "#4b5058"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#646b75"; ctx.fillRect(x + 3, y + 3, w - 6, h - 6);
+    } else if (s.t === "shelf") {
+      ctx.fillStyle = "#2f5d8a"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#3d78b0"; ctx.fillRect(x + 5, y + 5, w - 10, h - 10);
+      for (var i = 0, yy = y + 8; yy + 36 <= y + h - 6; i++, yy += 40) {
+        ctx.fillStyle = boxColor(i, x); ctx.fillRect(x + 9, yy, w - 18, 34);
+        ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(x + 9, yy + 14, w - 18, 4);
+      }
+    } else if (s.t === "van") {
+      ctx.fillStyle = "#eef0f2"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#c7ccd1"; ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+      ctx.fillStyle = "#e4e7ea"; ctx.fillRect(x + 6, y + 6, w - 12, h - 12);
+      ctx.fillStyle = "#2b3138";
+      if (w > h) ctx.fillRect(x + w - 22, y + 6, 14, h - 12); else ctx.fillRect(x + 6, y + 8, w - 12, 14);
+    } else if (s.t === "container") {
+      ctx.fillStyle = s.c; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "rgba(0,0,0,.22)";
+      for (var gxx = x + 12; gxx < x + w - 6; gxx += 16) ctx.fillRect(gxx, y + 4, 4, h - 8);
+    } else {
+      ctx.fillStyle = "#b98b55"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#a07440"; ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+      ctx.fillStyle = "#e9d5a8"; ctx.fillRect(x + w / 2 - 3, y, 6, h);
+    }
+  }
+  function drawPlayer(x, y, a, ci, name, hp, isMe, alpha) {
+    var col = PAL[ci % PAL.length];
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(0,0,0,.3)"; ctx.beginPath(); ctx.arc(x + 3, y + 4, PR, 0, 6.2832); ctx.fill();
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.fillStyle = "#23272c"; ctx.fillRect(6, -3.5, 19, 7);
+    ctx.restore();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, PR, 0, 6.2832); ctx.fill();
+    ctx.lineWidth = isMe ? 3 : 2; ctx.strokeStyle = isMe ? "#ffffff" : "rgba(0,0,0,.55)"; ctx.stroke();
+    ctx.fillStyle = "rgba(0,0,0,.28)"; ctx.beginPath(); ctx.arc(x - Math.cos(a) * 3, y - Math.sin(a) * 3, 6, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.font = "600 12px Barlow, system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillText(name, x + 1, y - 27);
+    ctx.fillStyle = "#fff"; ctx.fillText(name, x, y - 28);
+    if (!isMe) {
+      ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(x - 15, y - 24, 30, 4);
+      ctx.fillStyle = hp > 50 ? "#3ddc97" : hp > 25 ? "#ffb400" : "#ff5a5f"; ctx.fillRect(x - 15, y - 24, 30 * clamp(hp, 0, 100) / 100, 4);
+    }
+  }
+  function drawStick(s) {
+    if (s.id === null) return;
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.35)";
+    ctx.beginPath(); ctx.arc(s.ox, s.oy, 60, 0, 6.2832); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.45)";
+    ctx.beginPath(); ctx.arc(s.ox + s.x * 60, s.oy + s.y * 60, 26, 0, 6.2832); ctx.fill();
+  }
+
+  function render(t) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#1b1e22"; ctx.fillRect(0, 0, vw, vh);
+    var viewW = vw / scale, viewH = vh / scale;
+    if (started) {
+      cam.x = viewW >= W ? (W - viewW) / 2 : clamp(me.x - viewW / 2, 0, W - viewW);
+      cam.y = viewH >= H ? (H - viewH) / 2 : clamp(me.y - viewH / 2, 0, H - viewH);
+    } else {
+      cam.x = clamp(W / 2 - viewW / 2 + Math.cos(t * 0.12) * 700, 0, Math.max(0, W - viewW));
+      cam.y = clamp(H / 2 - viewH / 2 + Math.sin(t * 0.09) * 400, 0, Math.max(0, H - viewH));
+    }
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, -cam.x * dpr * scale, -cam.y * dpr * scale);
+
+    // chão
+    ctx.fillStyle = "#34383d"; ctx.fillRect(0, 0, W, H);
+    ctx.setLineDash([36, 28]); ctx.lineWidth = 5; ctx.strokeStyle = "#d9c35b";
+    ctx.beginPath();
+    ctx.moveTo(60, 140); ctx.lineTo(W - 60, 140);
+    ctx.moveTo(60, 1520); ctx.lineTo(W - 60, 1520);
+    ctx.moveTo(140, 60); ctx.lineTo(140, H - 60);
+    ctx.moveTo(2650, 60); ctx.lineTo(2650, H - 60);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#6e726c"; ctx.fillRect(1760, 200, 780, 1080);
+    ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.lineWidth = 2;
+    for (var gyy = 200; gyy <= 1280; gyy += 120) { ctx.beginPath(); ctx.moveTo(1760, gyy); ctx.lineTo(2540, gyy); ctx.stroke(); }
+    ctx.fillStyle = "#c9c2b0"; ctx.fillRect(gx, gy, gw, gh);
+    ctx.strokeStyle = "rgba(0,0,0,.08)";
+    for (var fx = gx; fx <= gx + gw; fx += 100) { ctx.beginPath(); ctx.moveTo(fx, gy); ctx.lineTo(fx, gy + gh); ctx.stroke(); }
+    for (var fy = gy; fy <= gy + gh; fy += 100) { ctx.beginPath(); ctx.moveTo(gx, fy); ctx.lineTo(gx + gw, fy); ctx.stroke(); }
+    ctx.fillStyle = "rgba(224,170,40,.5)";
+    ctx.fillRect(900, gy - 6, 120, 6); ctx.fillRect(900, gy + gh, 120, 6);
+
+    // objetos (com corte pela tela)
+    var vis = [], i;
+    for (i = 0; i < solids.length; i++) {
+      var s = solids[i];
+      if (s.x + s.w > cam.x - 10 && s.x < cam.x + viewW + 10 && s.y + s.h > cam.y - 10 && s.y < cam.y + viewH + 10) vis.push(s);
+    }
+    ctx.fillStyle = "rgba(0,0,0,.28)";
+    for (i = 0; i < vis.length; i++) ctx.fillRect(vis[i].x + 5, vis[i].y + 6, vis[i].w, vis[i].h);
+    for (i = 0; i < vis.length; i++) drawSolid(vis[i]);
+
+    // balas
+    ctx.lineCap = "round"; ctx.lineWidth = 4;
+    for (i = 0; i < bullets.length; i++) {
+      var b = bullets[i];
+      ctx.strokeStyle = b.own ? "#fff2a8" : "#ffb199";
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * 0.022, b.y - b.vy * 0.022); ctx.stroke();
+    }
+    // jogadores
+    var rs = remotes();
+    for (i = 0; i < rs.length; i++) {
+      var p = rs[i], pr = p.presence, sp = sm.get(p.peer);
+      if (!sp || pr.al === 0) continue;
+      drawPlayer(sp.x, sp.y, sp.a, (pr.ci | 0) < 0 ? 0 : (pr.ci | 0), safeName(pr.n), pr.hp | 0, false, 1);
+    }
+    if (started && me.alive) {
+      var blink = me.inv > 0 ? (Math.floor(t * 10) % 2 ? 0.45 : 0.9) : 1;
+      drawPlayer(me.x, me.y, me.a, me.ci, me.name, me.hp, true, blink);
+    }
+    // faíscas
+    for (i = 0; i < sparks.length; i++) {
+      var k = sparks[i];
+      ctx.fillStyle = "rgba(255,230,150," + (k.t * 4).toFixed(2) + ")";
+      ctx.beginPath(); ctx.arc(k.x, k.y, 6 + (0.2 - k.t) * 30, 0, 6.2832); ctx.fill();
+    }
+
+    // tela
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (me.flash > 0) { ctx.fillStyle = "rgba(255,40,40," + (me.flash * 1.2).toFixed(2) + ")"; ctx.fillRect(0, 0, vw, vh); }
+    if (started && !me.alive) { ctx.fillStyle = "rgba(0,0,0,.45)"; ctx.fillRect(0, 0, vw, vh); }
+    drawStick(sticks.move); drawStick(sticks.aim);
+  }
+
+  // ---------- HUD ----------
+  var hudT = 0, sendT = 0, miniT = 0;
+  var hpfill = document.getElementById("hpfill"), kd = document.getElementById("kd");
+  var rank = document.getElementById("rank"), status = document.getElementById("status"), conn = document.getElementById("conn");
+  function hudUpdate() {
+    var rs = remotes(), n = rs.length + (started ? 1 : 0);
+    hpfill.style.width = clamp(me.hp, 0, 100) + "%";
+    hpfill.style.background = me.hp > 50 ? "var(--ok)" : me.hp > 25 ? "var(--accent)" : "var(--danger)";
+    kd.innerHTML = "";
+    var b1 = document.createElement("b"); b1.textContent = String(me.kills);
+    var b2 = document.createElement("b"); b2.textContent = String(me.deaths);
+    kd.append("Abates ", b1, "  ·  Quedas ", b2);
+    var rows = rs.map(function (p) { return { n: safeName(p.presence.n), k: p.presence.k | 0, d: p.presence.d | 0 }; });
+    rows.push({ n: me.name + " (você)", k: me.kills, d: me.deaths });
+    rows.sort(function (a, b) { return b.k - a.k || a.d - b.d; });
+    rank.replaceChildren.apply(rank, rows.slice(0, 5).map(function (r) {
+      var li = document.createElement("li"), a = document.createElement("span"), c = document.createElement("span");
+      a.textContent = r.n; c.textContent = r.k + " / " + r.d;
+      li.append(a, c); return li;
+    }));
+    var msg;
+    if (!wsOpen) msg = "Reconectando ao servidor…";
+    else if (rs.length === 0) msg = "Você está sozinho. Chame a turma.";
+    else msg = n + " jogadores online";
+    status.textContent = msg;
+  }
+  function introStatus() {
+    if (!wsOpen) { conn.textContent = Date.now() - connectStart > 4000 ? "Acordando o servidor… pode levar até 1 minuto." : "Conectando ao servidor…"; return; }
+    conn.textContent = online === 0 ? "Servidor conectado. Ninguém jogando agora." : online + (online === 1 ? " jogador" : " jogadores") + " na partida agora.";
+  }
+  function miniDraw() {
+    mctx.drawImage(miniBase, 0, 0);
+    var rs = remotes(), i;
+    for (i = 0; i < rs.length; i++) {
+      var p = rs[i].presence; if (p.al === 0) continue;
+      mctx.fillStyle = PAL[(p.ci | 0) % PAL.length];
+      mctx.beginPath(); mctx.arc(p.x * MS, p.y * MS, 5, 0, 6.2832); mctx.fill();
+    }
+    if (started && me.alive) {
+      mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(me.x * MS, me.y * MS, 6, 0, 6.2832); mctx.fill();
+      mctx.fillStyle = PAL[me.ci]; mctx.beginPath(); mctx.arc(me.x * MS, me.y * MS, 3.5, 0, 6.2832); mctx.fill();
+    }
+    mctx.strokeStyle = "rgba(255,255,255,.6)"; mctx.lineWidth = 1.5;
+    mctx.strokeRect(cam.x * MS, cam.y * MS, Math.min(vw / scale, W) * MS, Math.min(vh / scale, H) * MS);
+  }
+
+  // ---------- Loop ----------
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    update(dt);
+    render(now / 1000);
+    sendT += dt; hudT += dt; miniT += dt;
+    if (started && wsOpen && sendT >= 0.05) {
+      sendT = 0;
+      send({ t: "s", x: Math.round(me.x), y: Math.round(me.y), a: Math.round(me.a * 100) / 100, hp: Math.max(0, me.hp), al: me.alive ? 1 : 0 });
+    }
+    if (hudT >= 0.25) { hudT = 0; if (started) hudUpdate(); else introStatus(); }
+    if (started && miniT >= 0.1) { miniT = 0; miniDraw(); }
+    requestAnimationFrame(frame);
+  }
+  connect();
+  requestAnimationFrame(frame);
+})();
+</script>
