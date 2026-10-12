@@ -7,6 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1b1e22">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Arena">
 <title>Arena do Galpão</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -417,7 +421,7 @@ body { position: fixed; left: 0; top: 0; }
       <b>Celular:</b> bolinha da esquerda anda, botão vermelho atira, botão azul pequeno (Mira) gira a mira. Deixe o celular deitado.<br>
       <b>Partida:</b> cada queda conta. Com 5 quedas você sai e assiste os outros. Vence quem caiu menos vezes. De vez em quando aparece um zumbi: derrube e ganhe kit médico ou atadura. EP (barra azul) vem de atadura e zumbi, protege e cura a vida. Até 15 jogadores.<br>
       <b>Como evoluir:</b> você começa com duas pistolas. Cada abate dá uma arma melhor, e quanto mais abates, menos dano você leva. Pegue as armas que aparecem no mapa.<br>
-      <b>iPhone:</b> toque em Compartilhar e em "Adicionar à Tela de Início" para jogar em tela cheia.
+      <b>Instalar:</b> iPhone: Compartilhar > "Adicionar à Tela de Início". Android/Chrome: menu ⋮ > "Instalar app". PC: ícone de instalar na barra de endereço.
     </div>
   </div>
 </div>
@@ -1649,6 +1653,7 @@ body { position: fixed; left: 0; top: 0; }
   }
   connect();
   requestAnimationFrame(frame);
+  if ("serviceWorker" in navigator) window.addEventListener("load", function () { try { navigator.serviceWorker.register("/sw.js").catch(noop); } catch (e) {} });
 
   // ganchos para teste
   window.__arena = { fake: function (a) { freezeNet = true; netPlayers = a; }, setZoom: function (z) { camZoom = z; }, solids: solids, me: me, W: W, H: H, circleHit: circleHit, get glOK() { return glOK; }, get rscale() { return rscale; }, get pickups() { return pickups; }, get zombies() { return zombies; }, get match() { return match; }, useItem: useItem, onGot: onGot, hurt: hurt };

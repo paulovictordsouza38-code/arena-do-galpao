@@ -20,8 +20,26 @@ function loadIndex() {
 }
 loadIndex();
 
+// arquivos do app instalável (lidos uma vez ao ligar)
+const STATIC = {};
+for (const [url, file, type] of [
+  ["/manifest.webmanifest", "manifest.webmanifest", "application/manifest+json"],
+  ["/sw.js", "sw.js", "text/javascript; charset=utf-8"],
+  ["/icon-192.png", "icon-192.png", "image/png"],
+  ["/icon-512.png", "icon-512.png", "image/png"],
+  ["/icon-maskable-512.png", "icon-maskable-512.png", "image/png"],
+  ["/apple-touch-icon.png", "apple-touch-icon.png", "image/png"],
+]) {
+  try { STATIC[url] = { buf: fs.readFileSync(path.join(__dirname, file)), type }; } catch (e) {}
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz") { res.writeHead(200); res.end("ok"); return; }
+  const st = STATIC[String(req.url).split("?")[0]];
+  if (st) {
+    res.writeHead(200, { "Content-Type": st.type, "Cache-Control": st.type.startsWith("image") ? "public, max-age=86400" : "no-cache" });
+    res.end(st.buf); return;
+  }
   if (req.url === "/" || req.url.startsWith("/?")) {
     if (!indexBuf) loadIndex();
     if (!indexBuf) { res.writeHead(500); res.end("index.html não encontrado"); return; }
@@ -385,5 +403,15 @@ setInterval(() => {
     try { ws.ping(); } catch (e) {}
   }
 }, 15000);
+
+// Mantém o servidor acordado no plano grátis do Render: ele acessa o próprio endereço público a cada 10 minutos.
+// (O Render define RENDER_EXTERNAL_URL sozinho; fora do Render isso não faz nada.)
+const SELF = process.env.RENDER_EXTERNAL_URL;
+if (SELF) {
+  const lib = SELF.startsWith("https") ? require("https") : http;
+  setInterval(() => {
+    try { lib.get(SELF.replace(/\/$/, "") + "/healthz", (r) => r.resume()).on("error", () => {}); } catch (e) {}
+  }, 10 * 60 * 1000);
+}
 
 server.listen(PORT, () => console.log("Arena do Galpão no ar na porta " + PORT));
