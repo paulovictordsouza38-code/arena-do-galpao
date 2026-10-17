@@ -157,6 +157,37 @@ button { font-family: inherit; }
 }
 #vig{position:fixed;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(8,6,16,.38) 100%)}
 #vig,#hud~#vig{display:block}
+
+/* ---------- Menu industrial ---------- */
+#lbtop { display: none !important; } #lbstat { top: calc(var(--sat) + 58px) !important; }
+#brand { position: absolute; top: calc(var(--sat) + 8px); left: calc(var(--sal) + 14px); display: flex; align-items: center; gap: 8px; text-shadow: 0 2px 8px #000; }
+#brand svg { width: 44px; height: 44px; flex: none; }
+#brand b { display: block; font: 700 clamp(20px, 5.4vmin, 34px)/0.9 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+#brand b em { font-style: normal; color: var(--accent); display: block; font-size: 1.35em; }
+#userbar { position: absolute; top: calc(var(--sat) + 10px); right: calc(var(--sar) + 12px); display: flex; gap: 8px; align-items: center; }
+#pchip { border-radius: 4px !important; background: rgba(16,18,22,0.82) !important; border-color: rgba(255,180,0,0.5) !important; }
+.mbtn { background: rgba(16,18,22,0.84); border: 1px solid var(--line); border-left: 4px solid rgba(255,255,255,0.25); color: var(--ink); font: 700 clamp(15px, 4.2vmin, 20px) var(--display); letter-spacing: 0.09em; text-transform: uppercase; padding: 10px 12px; text-align: left; display: flex; align-items: center; gap: 10px; cursor: pointer; touch-action: manipulation; transition: transform .12s, border-color .12s, background .12s; }
+.mbtn:hover, .mbtn:active { border-left-color: var(--accent); background: rgba(40,42,48,0.92); transform: translateX(3px); }
+.mbtn.main { background: linear-gradient(90deg, #ffc21a, #f0a800); color: #16181c; border-color: transparent; border-left-color: #fff; font-size: clamp(20px, 6vmin, 28px); padding: 12px 14px; }
+.mbtn .ic { width: 22px; text-align: center; flex: none; font-size: 1.05em; }
+#lbmenu { gap: 6px !important; width: min(40vw, 260px) !important; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.mode { position: relative; min-height: 84px; background: linear-gradient(160deg, rgba(60,64,72,0.9), rgba(24,26,30,0.95)); border: 1px solid var(--line); border-bottom: 3px solid var(--accent); color: var(--ink); text-align: left; padding: 10px; cursor: pointer; font-family: var(--display); }
+.mode b { display: block; font-size: 21px; letter-spacing: 0.06em; text-transform: uppercase; }
+.mode small { display: block; font: 400 12px var(--body); color: var(--ink-dim); margin-top: 3px; letter-spacing: 0; text-transform: none; }
+.mode:active { transform: scale(0.98); border-bottom-color: #fff; }
+.mode.zb { border-bottom-color: #7ccf5a; } .mode.bt { border-bottom-color: var(--blue); } .mode.du { border-bottom-color: #ff7ad9; }
+.wlist { display: grid; gap: 6px; max-height: 38vh; overflow-y: auto; margin-top: 6px; }
+.wrow { display: grid; grid-template-columns: 1fr; gap: 3px; background: rgba(255,255,255,0.05); border-left: 3px solid var(--accent); padding: 6px 8px; }
+.wrow .wn { font: 700 18px var(--display); letter-spacing: 0.06em; text-transform: uppercase; display: flex; justify-content: space-between; }
+.wrow .wn small { font: 500 12px var(--body); color: var(--ink-dim); letter-spacing: 0; text-transform: none; }
+.bar { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .06em; }
+.bar i { display: block; height: 5px; background: rgba(255,255,255,0.1); position: relative; } .bar i s { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+.seg { display: flex; gap: 6px; margin: 6px 0; } .seg button { flex: 1; font: 700 15px var(--display); letter-spacing: .06em; text-transform: uppercase; padding: 9px 4px; color: var(--ink); background: rgba(255,255,255,0.08); border: 1px solid var(--line); cursor: pointer; }
+.seg button.on { background: var(--accent); color: #16181c; border-color: transparent; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+@media (orientation: portrait) { #lbmenu { grid-template-columns: 1fr 1fr; } .mbtn.main { grid-column: 1 / 3; } #brand svg { width: 34px; height: 34px; } }
+@media (max-height: 430px) and (orientation: landscape) { .mbtn { padding: 6px 10px; } #lbmenu { gap: 4px !important; } .mbtn.main { padding: 8px 12px; } }
 </style>
 </head>
 <body>
@@ -242,18 +273,48 @@ button { font-family: inherit; }
 </div>
 
 <div id="lobby" class="screen" hidden>
+  <div id="brand"><svg viewBox="0 0 64 64" fill="none" stroke="#ffb400" stroke-width="4"><circle cx="32" cy="32" r="20"/><path d="M32 4v14M32 46v14M4 32h14M46 32h14"/><circle cx="32" cy="32" r="4" fill="#ff4b4b" stroke="none"/></svg><b>Arena do<em>Galpão</em></b></div>
   <div id="lbtop"><button id="pchip" type="button"><span id="pdot"></span><span id="pchipn"></span></button></div>
+  <div id="userbar"><button id="pchip2" class="mbtn" style="padding:6px 12px" type="button"><span id="pdot2" style="width:18px;height:18px;border-radius:50%;border:2px solid #fff;display:inline-block"></span><span id="pchipn2"></span></button></div>
   <div id="partybar" hidden></div>
   <div id="lbstat"></div>
   <div id="lbmenu">
-    <button id="bWork" class="btn" type="button">Trabalhar</button>
-    <button id="bDuo" class="btn alt" type="button">Duo (2 x 2)</button>
-    <button id="bFriends" class="btn alt" type="button">Amigos+ <span id="reqn"></span></button>
-    <button id="bZomb" class="btn alt" type="button">Só zumbis</button>
-    <button id="bOff" class="btn alt" type="button">Offline (treino)</button>
+    <button id="bPlay" class="mbtn main" type="button"><span class="ic">▶</span>Jogar</button>
+    <button id="bArms" class="mbtn" type="button"><span class="ic">✜</span>Armamento</button>
+    <button id="bChar" class="mbtn" type="button"><span class="ic">☻</span>Personagem</button>
+    <button id="bFriends" class="mbtn" type="button"><span class="ic">☗</span>Amigos+ <span id="reqn"></span></button>
+    <button id="bSet" class="mbtn" type="button"><span class="ic">⚙</span>Configurações</button>
   </div>
   <div id="lbhint">Arraste o boneco para girar</div>
 </div>
+
+<div id="mModes" class="modal" hidden><div class="box">
+  <h2>Jogar</h2>
+  <div class="modes">
+    <button id="bWork" class="mode" type="button"><b>Mata-mata</b><small>Galpão, até 30 jogadores. Uma vida só.</small></button>
+    <button id="bOff" class="mode bt" type="button"><b>Contra bots</b><small>Offline, treine sem internet.</small></button>
+    <button id="bDuo" class="mode du" type="button"><b>Duo (2 x 2)</b><small>Entre com um amigo.</small></button>
+    <button id="bZomb" class="mode zb" type="button"><b>Só zumbis</b><small>Sobreviva e evolua a arma.</small></button>
+  </div>
+  <div style="margin-top:12px;text-align:right"><button class="btn alt close" type="button">Fechar</button></div>
+</div></div>
+
+<div id="mArms" class="modal" hidden><div class="box">
+  <h2>Armamento</h2>
+  <p>Todos começam com as pistolas. Cada abate sobe um degrau na lista e armas também aparecem no chão.</p>
+  <div id="wlist" class="wlist"></div>
+  <div style="margin-top:12px;text-align:right"><button class="btn alt close" type="button">Fechar</button></div>
+</div></div>
+
+<div id="mSet" class="modal" hidden><div class="box">
+  <h2>Configurações</h2>
+  <h4>Qualidade gráfica</h4>
+  <div class="seg" id="gfxSeg"><button type="button" data-g="perf">Desempenho</button><button type="button" data-g="bal">Equilibrado</button><button type="button" data-g="high">Qualidade</button></div>
+  <p id="gfxInfo"></p>
+  <h4>Volume dos efeitos: <span id="volN"></span></h4>
+  <input id="vol" type="range" min="0" max="100" step="5">
+  <div style="margin-top:12px;text-align:right"><button class="btn alt close" type="button">Fechar</button></div>
+</div></div>
 
 <div id="invite" hidden><span id="invtxt"></span><button id="invYes" class="btn sm" type="button">Aceitar</button><button id="invNo" class="btn alt sm" type="button">Recusar</button></div>
 
@@ -1234,6 +1295,9 @@ function stepBots(r, dt, now) {
   var TIERC = [[0.5, 0.5, 0.5], [0.95, 0.95, 0.95], [0.30, 0.90, 0.40], [1.0, 0.85, 0.30], [0.30, 0.60, 1.0], [1.0, 0.60, 0.20], [0.95, 0.35, 0.85], [1.0, 0.25, 0.30], [0.7, 1.0, 1.0], [0.8, 0.8, 0.85], [0.9, 0.9, 0.95], [1.0, 0.5, 0.2]];
   var MUZZLE = [2.0, 2.9, 3.1, 3.2, 3.2, 3.6, 3.9, 3.9, 5.2];
 
+  var SET = { gfx: "bal", vol: 80 };
+  try { var ss = JSON.parse(localStorage.getItem("arena-set") || "null"); if (ss) { if (/^(perf|bal|high)$/.test(ss.gfx)) SET.gfx = ss.gfx; if (ss.vol >= 0 && ss.vol <= 100) SET.vol = +ss.vol; } } catch (e) {}
+  function saveSet() { try { localStorage.setItem("arena-set", JSON.stringify(SET)); } catch (e) {} }
   function $(id) { return document.getElementById(id); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function css(c) { return "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")"; }
@@ -1582,7 +1646,14 @@ function stepBots(r, dt, now) {
 
   var glc = $("gl"), uic = $("ui"), uix = uic.getContext("2d");
   var vw = window.innerWidth, vh = window.innerHeight;
-  var maxScale = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
+  var dprr = window.devicePixelRatio || 1, maxScale = Math.min(dprr, isMobile ? 1.5 : 2), gfxDecals = true;
+  function applyGfx() {
+    var g = SET.gfx;
+    maxScale = g === "perf" ? Math.min(dprr, isMobile ? 0.8 : 1) : g === "high" ? Math.min(dprr, isMobile ? 2 : 2.5) : Math.min(dprr, isMobile ? 1.5 : 2);
+    gfxDecals = g !== "perf";
+    var v = document.getElementById("vig"); if (v) v.style.display = g === "perf" ? "none" : "block";
+    rscale = maxScale; if (typeof resize === "function" && gl) resize();
+  }
   var rscale = maxScale, uis = 1;
   var camZoom = 1;
   var cam = { x: 0, y: 0, z: 0, fwd: [0, 0, -1], right: [1, 0, 0], up: [0, 1, 0], tanH: 0.34, aspect: 1 };
@@ -1748,7 +1819,7 @@ function stepBots(r, dt, now) {
     });
   }
   function drawDecals() {
-    if (!dprog || !decN) return;
+    if (!dprog || !decN || !gfxDecals) return;
     gl.useProgram(dprog); gl.uniformMatrix4fv(duVP, false, VP);
     gl.bindTexture(gl.TEXTURE_2D, decTex);
     gl.bindBuffer(gl.ARRAY_BUFFER, decVbo);
@@ -2117,7 +2188,7 @@ function stepBots(r, dt, now) {
     if (++sfxCount > 7) return;
     try {
       var s = audio.createBufferSource(), g = audio.createGain();
-      s.buffer = sfxBuf[name]; g.gain.value = vol;
+      s.buffer = sfxBuf[name]; g.gain.value = vol * SET.vol / 100;
       s.playbackRate.value = 0.94 + Math.random() * 0.12;
       s.connect(g); g.connect(audio.destination); s.start();
     } catch (e) {}
@@ -2175,7 +2246,7 @@ function stepBots(r, dt, now) {
     for (var i = 0; i < n; i++) f[i] = unulaw(u[i + 1]);
     try {
       var ab = audio.createBuffer(1, n, 11025); ab.getChannelData(0).set(f);
-      var s = audio.createBufferSource(), g = audio.createGain(); g.gain.value = 1.6;
+      var s = audio.createBufferSource(), g = audio.createGain(); g.gain.value = 1.6 * SET.vol / 100;
       s.buffer = ab; s.connect(g); g.connect(audio.destination);
       var t = audio.currentTime;
       if (voice.nextT < t || voice.nextT > t + 0.6) voice.nextT = t + 0.08;
@@ -2386,7 +2457,7 @@ function stepBots(r, dt, now) {
   }
   function setLoginBusy(b) { $("go").disabled = b; $("rgo").disabled = b; }
   function updateLobbyUI() {
-    setText($("pchipn"), acct.name || "…");
+    setText($("pchipn"), acct.name || "…"); setText($("pchipn2"), acct.name || "…"); $("pdot2").style.background = css(PAL[(acct.ci | 0) % 8]);
     $("pdot").style.background = css(PAL[(acct.ci | 0) % 8]);
     setText($("reqn"), reqs.length ? "(" + reqs.length + ")" : "");
   }
@@ -2411,13 +2482,44 @@ function stepBots(r, dt, now) {
 
   /* ---- almoço: botões ---- */
   function openModal(id) { $(id).hidden = false; }
-  function closeModals() { ["mFriends", "mDuo", "mProfile"].forEach(function (id) { $(id).hidden = true; }); }
+  function closeModals() { ["mFriends", "mDuo", "mProfile", "mModes", "mArms", "mSet"].forEach(function (id) { $(id).hidden = true; }); }
   Array.prototype.forEach.call(document.querySelectorAll(".modal .close"), function (b) { b.addEventListener("click", closeModals); });
   $("bWork").addEventListener("click", function () { initAudio(); send({ t: "play", mode: "g" }); });
   $("bZomb").addEventListener("click", function () { initAudio(); send({ t: "play", mode: "z" }); });
   $("bDuo").addEventListener("click", function () { renderDuo(); openModal("mDuo"); });
   $("bFriends").addEventListener("click", function () { $("fres").innerHTML = ""; $("fmsg").textContent = ""; renderFriends(); openModal("mFriends"); });
   $("duoGo").addEventListener("click", function () { if (party.length === 2) { closeModals(); send({ t: "play", mode: "duo" }); } });
+  $("bPlay").addEventListener("click", function () { initAudio(); openModal("mModes"); });
+  Array.prototype.forEach.call(document.querySelectorAll("#mModes .mode"), function (b) { b.addEventListener("click", function () { if (b.id !== "bDuo") closeModals(); else $("mModes").hidden = true; }); });
+  function openProfile() {
+    $("newname").value = acct.name; $("pmsg").textContent = ""; $("reccode").hidden = true; $("permwarn").hidden = perm;
+    renderSwatches(); openModal("mProfile");
+  }
+  $("pchip2").addEventListener("click", openProfile); $("bChar").addEventListener("click", openProfile);
+  /* ---- armamento (dados reais das armas) ---- */
+  $("bArms").addEventListener("click", function () {
+    var h = "", i, w, mx = { d: 1, r: 1, a: 1 };
+    for (i = 0; i < WEAPONS.length; i++) { w = WEAPONS[i]; if (w.k === "g") { mx.d = Math.max(mx.d, w.dmg * (w.pel || 1)); mx.r = Math.max(mx.r, w.rate); mx.a = Math.max(mx.a, w.spd * w.life); } }
+    function bar(l, v) { return '<div class="bar">' + l + '<i><s style="width:' + Math.round(clamp(v, 0.04, 1) * 100) + '%"></s></i></div>'; }
+    for (i = 0; i < WEAPONS.length; i++) {
+      w = WEAPONS[i];
+      h += '<div class="wrow"><div class="wn">' + esc(w.n) + '<small>' + (w.k === "g" ? "Arma de fogo" : "Corpo a corpo") + '</small></div>';
+      if (w.k === "g") h += bar("Dano", w.dmg * (w.pel || 1) / mx.d) + bar("Cadência", w.rate / mx.r) + bar("Alcance", w.spd * w.life / mx.a) + bar("Precisão", 1 - w.spread * 3.5);
+      else h += bar("Dano", w.dmg / 45) + bar("Cadência", w.rate / 3.2) + bar("Alcance", w.range / 3.5);
+      h += '</div>';
+    }
+    $("wlist").innerHTML = h; openModal("mArms");
+  });
+  /* ---- configurações: gráficos e volume ---- */
+  var GFXINFO = { perf: "Mais FPS: resolução menor, sem grafites e sem vinheta. Bom para celulares antigos.", bal: "Padrão: visual completo com resolução ajustada ao aparelho.", high: "Resolução máxima do aparelho. Use em computadores e celulares potentes." };
+  function renderSet() {
+    Array.prototype.forEach.call(document.querySelectorAll("#gfxSeg button"), function (b) { b.classList.toggle("on", b.dataset.g === SET.gfx); });
+    $("gfxInfo").textContent = GFXINFO[SET.gfx]; $("vol").value = SET.vol; $("volN").textContent = SET.vol ? SET.vol + "%" : "mudo";
+  }
+  $("bSet").addEventListener("click", function () { renderSet(); openModal("mSet"); });
+  $("gfxSeg").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; SET.gfx = b.dataset.g; saveSet(); applyGfx(); renderSet(); });
+  $("vol").addEventListener("input", function () { SET.vol = +this.value; saveSet(); renderSet(); sfx("pick", 0.5); });
+  applyGfx();
   $("pchip").addEventListener("click", function () {
     $("newname").value = acct.name; $("pmsg").textContent = ""; $("reccode").hidden = true; $("permwarn").hidden = perm;
     renderSwatches(); openModal("mProfile");
