@@ -12,7 +12,7 @@ const { WebSocketServer } = require("ws");
 const SH = (function () {
   "use strict";
   var W = 270, H = 96;
-  var PR = 0.8, SPEED = 9.2;
+  var PR = 0.8, SPEED = 11.5, RUNMUL = 1.65;
   var MAXHP = 300, MAXEP = 100;
   var GAL = { x0: 12, y0: 12, x1: 90, y1: 66 };       // retângulo interno do galpão
   var NG = 9;                                          // armas de fogo: ids 0..8; brancas: 9..11
@@ -30,29 +30,35 @@ const SH = (function () {
     { n: "Sniper AWM",      k: "g", dmg: 85,  rate: 0.9, spread: 0.004, life: 1.5,  spd: 120, pel: 1 },
     { n: "Soco inglês",     k: "m", dmg: 12,  rate: 3.2, range: 2.7 },
     { n: "Faca",            k: "m", dmg: 20,  rate: 2.4, range: 3.0 },
-    { n: "Machado",         k: "m", dmg: 45,  rate: 1.1, range: 3.5 }
+    { n: "Machado",         k: "m", dmg: 45,  rate: 1.1, range: 3.5 },
+    { n: "Pistola",         k: "g", dmg: 14,  rate: 3.4, spread: 0.028, life: 0.72, spd: 62,  pel: 1, side: true }
   ];
+  // mira (zoom): cresce com a força da arma, de 2x até 4x
+  var ZOOM = [2, 2, 2.4, 2, 2.8, 3, 3.5, 3.7, 4, 0, 0, 0, 2];
+  for (var zi = 0; zi < WEAPONS.length; zi++) WEAPONS[zi].zm = ZOOM[zi];
+  var SIDE = 12;                                       // id da pistola reserva (vai no slot 3, junto com as brancas)
+  function isSide(w) { var q = WEAPONS[w]; return !!q && (q.k === "m" || q.side === true); }
   var PROG = [0, 1, 2, 4, 5, 6, 7];                    // cada abate sobe um degrau
   // chance de aparecer no chão (armas de fogo 1..8) e brancas (9..11)
   var GUN_W = [0, 22, 18, 12, 16, 14, 10, 8, 4];
-  var MELEE_W = [0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 40, 20];
+  var MELEE_W = [0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 40, 20, 34];
 
   var solids = [];
   function S(t, x, y, w, h, hg, o) {
     var s = { t: t, x: x, y: y, w: w, h: h, hg: hg, c: (o && o.c) || null, v: !!(o && o.v), p: (o && o.p) || "", d: (o && o.d) || 1 };
     solids.push(s); return s;
   }
-  var WALLH = 3.4;
+  var WALLH = 8.4;
   function wall(x, y, w, h) { S("wall", x, y, w, h, WALLH); }
-  function fence(x, y, w, h) { S("fence", x, y, w, h, 2.4); }
-  function crate(x, y, w, h, st) { S("crate", x, y, w, h, st ? 4.1 : 2.4, { v: st }); }
-  function container(x, y, w, h, c) { S("container", x, y, w, h, 4.2, { c: c }); }
+  function fence(x, y, w, h) { S("fence", x, y, w, h, 4.8); }
+  function crate(x, y, w, h, st) { S("crate", x, y, w, h, st ? 5.0 : 2.4, { v: st }); }
+  function container(x, y, w, h, c) { S("container", x, y, w, h, 6.6, { c: c }); }
   function barrel(x, y) { S("barrel", x, y, 1.5, 1.5, 1.9); }
   function pallet(x, y) { S("pallet", x, y, 2.6, 2.6, 2.4); }
-  function van(x, y, w, h) { S("van", x, y, w, h, 3.0); }
+  function van(x, y, w, h) { S("van", x, y, w, h, 5.0); }
   // avião (sempre deitado no eixo x): fuselagem + asa + cauda
   function plane(cx, cy, len, span, d, c) {
-    S("plane", cx - len / 2, cy - 1.6, len, 3.2, 3.6, { p: "f", d: d, c: c });
+    S("plane", cx - len / 2, cy - 1.6, len, 3.2, 5.8, { p: "f", d: d, c: c });
     S("plane", cx - 2.8 + (d > 0 ? 0.5 : -0.5), cy - span / 2, 5.6, span, 1.3, { p: "w", d: d, c: c });
     S("plane", cx + d * (len / 2 - 3.2) - 1.1 - (d > 0 ? 0 : 0), cy - span * 0.2, 2.2, span * 0.4, 1.0, { p: "t", d: d, c: c });
   }
@@ -67,7 +73,7 @@ const SH = (function () {
     wall(x0, y0 + t, t, 34 - (y0 + t)); wall(x0, 42, t, y1 - t - 42);
     wall(x1 - t, y0 + t, t, 22 - (y0 + t)); wall(x1 - t, 30, t, 18); wall(x1 - t, 56, t, y1 - t - 56);
     var sx = [19.8, 27.8, 35.8, 57.8, 65.8, 73.8], ry = [18, 46];
-    for (i = 0; i < sx.length; i++) for (j = 0; j < ry.length; j++) S("shelf", sx[i], ry[j], 2.4, 14, 4.4);
+    for (i = 0; i < sx.length; i++) for (j = 0; j < ry.length; j++) S("shelf", sx[i], ry[j], 2.4, 14, 7.2);
     crate(24, 36, 3, 3); crate(60, 38, 3.2, 3.2, true); crate(78, 41, 3, 3); crate(56, 43, 2.6, 2.6);
     crate(15, 15, 3, 3); crate(84, 15, 3, 3); crate(15, 60, 3, 3); crate(84, 60, 3, 3, true);
     // barris e paletes (cobertura extra)
@@ -83,7 +89,7 @@ const SH = (function () {
     crate(100, 22, 2.6, 2.6); crate(126, 42, 3, 3, true); crate(108, 50, 3, 3); crate(140, 46, 2.6, 2.6);
     // rua e laterais
     van(12, 80, 8, 4); van(34, 84, 8, 4); van(58, 80, 8, 4); van(108, 82, 8, 4); van(130, 78, 8, 4);
-    S("booth", 88, 76, 7, 6, 3.4);
+    S("booth", 88, 76, 7, 6, 5.4);
     van(30, 4, 8, 4); van(66, 4.5, 8, 4); van(108, 4, 8, 4);
     van(3.5, 22, 4, 8); van(3.5, 48, 4, 8); van(3.5, 72, 4, 8);
     barrel(100, 19.4); barrel(101.9, 19.9); barrel(136, 20); barrel(137.9, 20.6); barrel(100.5, 58.4); barrel(102.4, 58.9); barrel(144, 66);
@@ -110,7 +116,7 @@ const SH = (function () {
     wall(228, 32.6, 10, 1.4); wall(254, 32.6, 10, 1.4);
     plane(244, 22, 12, 11, 1, [0.9, 0.35, 0.18]);
     crate(232, 12, 3, 3); crate(232, 26, 3, 3, true); crate(258, 12, 3, 3, true); crate(258, 27, 3, 3);
-    S("shelf", 250, 10.5, 9, 2.4, 4.4);
+    S("shelf", 250, 10.5, 9, 2.4, 7.2);
     // pátio dos aviões (apron)
     plane(180, 47, 22, 22, 1, [0.20, 0.45, 0.80]);
     plane(214, 53, 22, 22, -1, [0.85, 0.20, 0.25]);
@@ -118,11 +124,11 @@ const SH = (function () {
     S("cart", 172, 35, 3.6, 2, 1.3); S("cart", 195, 35, 3.6, 2, 1.3); S("cart", 200, 38, 3.6, 2, 1.3);
     container(228, 38, 10, 4.4, [0.85, 0.50, 0.15]); container(240, 38, 4.4, 8, [0.30, 0.45, 0.70]);
     van(156, 56, 8, 4); van(196, 62, 8, 4); van(228, 60, 4, 8);
-    S("tank", 252, 58, 7, 7, 4.2); S("tank", 261, 58, 5.5, 5.5, 3.6);
+    S("tank", 252, 58, 7, 7, 6.6); S("tank", 261, 58, 5.5, 5.5, 5.4);
     // pista (só marcação) e faixa de baixo
     S("barrier", 168, 83.5, 6, 1.4, 1.1); S("barrier", 200, 83.5, 6, 1.4, 1.1); S("barrier", 236, 83.5, 6, 1.4, 1.1);
     van(160, 88, 8, 4); van(220, 88, 8, 4); crate(186, 88, 3, 3, true); crate(250, 88, 3, 3); crate(262, 72, 3, 3);
-    for (i = 0; i < solids.length; i++) if (solids[i].t === "crate" && solids[i].v) solids[i].hg = 4.1;
+    for (i = 0; i < solids.length; i++) if (solids[i].t === "crate" && solids[i].v) solids[i].hg = 5.0;
   })();
 
   // grade para colisão rápida
@@ -172,8 +178,8 @@ const SH = (function () {
   }
   var ZONES = { all: [6, 6, 264, 90], gal: [14, 14, 88, 64], yard: [94, 8, 144, 72] };
 
-  return { W: W, H: H, PR: PR, SPEED: SPEED, MAXHP: MAXHP, MAXEP: MAXEP, GAL: GAL, NG: NG, WEAPONS: WEAPONS, PROG: PROG,
-    GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, solidAt: solidAt, freePoint: freePoint, ZONES: ZONES };
+  return { W: W, H: H, PR: PR, SPEED: SPEED, RUNMUL: RUNMUL, SIDE: SIDE, isSide: isSide, MAXHP: MAXHP, MAXEP: MAXEP, GAL: GAL, NG: NG, WEAPONS: WEAPONS, PROG: PROG,
+    GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, solidAt: solidAt, near: cell, freePoint: freePoint, ZONES: ZONES };
 })();
 
 
@@ -328,7 +334,8 @@ function teamKey(P) {
   return pt && pt.m.length === 2 ? pt.m.slice().sort().join("+") : P.acc.id;
 }
 function pname(P) { return P.acc.name; }
-function activeW(P) { return P.act === 1 && P.m >= 0 ? P.m : P.g; }
+function activeW(P) { return P.act === 1 && P.g2 >= 0 ? P.g2 : P.act === 2 && P.m >= 0 ? P.m : P.g; }
+function isMeleeW(w) { return !!WN[w] && WN[w].k === "m"; }
 
 // ---------- Itens do chão ----------
 function pickW(tbl) { let t = 0, i; for (i = 0; i < tbl.length; i++) t += tbl[i]; let x = Math.random() * t; for (i = 0; i < tbl.length; i++) { x -= tbl[i]; if (x <= 0) return i; } return 1; }
@@ -437,13 +444,14 @@ function upgradeGun(P) {
   const i = SH.PROG.indexOf(P.g);
   if (i >= 0 && i < SH.PROG.length - 1) { P.g = SH.PROG[i + 1]; if (P.act === 0) {} }
 }
-function sendSt(P) { sendP(P, { t: "st", g: P.g, m: P.m, act: P.act, pts: P.pts, mk: P.mk }); }
-function resetLoadout(P) { P.g = 0; P.m = -1; P.act = 0; }
+function sendSt(P) { sendP(P, { t: "st", g: P.g, g2: P.g2 >= 0 ? P.g2 : -1, m: P.m, act: P.act, pts: P.pts, mk: P.mk }); }
+function resetLoadout(P) { P.g = 0; P.g2 = -1; P.m = -1; P.act = 0; }
 function dropLoadout(P) {
   const r = P.room; if (!r) return;
   if (P.g !== 0) dropItem(r, "w", P.g, P.x, P.y);
   if (P.m >= 0) dropItem(r, "w", P.m, P.x, P.y);
-  if (P.g !== 0 || P.m >= 0) bcastPk(r);
+  if (P.g2 >= 0) dropItem(r, "w", P.g2, P.x, P.y);
+  if (P.g !== 0 || P.m >= 0 || P.g2 >= 0) bcastPk(r);
 }
 function pickSpawn(r, P) {
   let best = null, bd = -1;
@@ -493,7 +501,7 @@ function initPlayerState(P, r) {
 }
 function joinedMsg(P, r) {
   return { t: "joined", kind: r.kind, nid: P.nid, ci: P.ci, x: P.x, y: P.y, al: P.al && !P.out ? 1 : 0, out: P.out ? 1 : 0,
-    g: P.g, m: P.m, act: P.act, pts: P.pts, mk: P.mk, hp: P.hp, ep: P.ep, pk: pkList(r), match: matchMsg(r), ro: rosterMsg(r).l, perm: PERMANENT };
+    g: P.g, g2: P.g2 >= 0 ? P.g2 : -1, m: P.m, act: P.act, pts: P.pts, mk: P.mk, hp: P.hp, ep: P.ep, pk: pkList(r), match: matchMsg(r), ro: rosterMsg(r).l, perm: PERMANENT };
 }
 function enterRoom(P, r) {
   leaveRoom(P, true);
@@ -632,17 +640,18 @@ function inRoomMsg(P, m, raw) {
     }
     case "shot": {
       if (P.out || !P.al) return;
+      const w = activeW(P);
+      if (isMeleeW(w)) return;
       const now = Date.now();
       P.shots = P.shots.filter((t) => now - t < 1000);
       if (P.shots.length >= 16) return;
       P.shots.push(now);
-      const w = P.g;
       const msg = JSON.stringify({ t: "shot", n: P.nid, w, x: r1(num(m.x, 0, W0, P.x)), y: r1(num(m.y, 0, H0, P.y)), a: r2(num(m.a, -7, 7, 0)), v: r2(num(m.v, -1, 1, 0)) });
       for (const Q of r.players) if (Q !== P && Math.abs(Q.x - P.x) < 90 && Math.abs(Q.y - P.y) < 70) sendP(Q, msg);
       break;
     }
     case "mel": {
-      if (P.out || !P.al || P.m < 0) return;
+      if (P.out || !P.al || P.m < 0 || !isMeleeW(P.m)) return;
       const W1 = WN[P.m], now = Date.now();
       if (now - P.lastMel < 1000 / W1.rate - 40) return;
       P.lastMel = now;
@@ -662,7 +671,7 @@ function inRoomMsg(P, m, raw) {
       P.zh.push(now);
       const z = r.zombies.find((q) => q.i === m.i);
       if (!z || Math.hypot(z.x - P.x, z.y - P.y) > 60) return;
-      z.hp -= WN[P.g].dmg * (m.hs ? HEAD_MUL : BODY_MUL);
+      z.hp -= WN[isMeleeW(activeW(P)) ? P.g : activeW(P)].dmg * (m.hs ? HEAD_MUL : BODY_MUL);
       if (z.hp <= 0) killZombie(r, z, P);
       break;
     }
@@ -675,7 +684,7 @@ function inRoomMsg(P, m, raw) {
       let B = null; for (const Q of r.players) if (Q.nid === m.n && Q.bot) B = Q;
       if (!B || !B.al || B.out || B.team === P.team || B.inv > 0) return;
       if (Math.hypot(B.x - P.x, B.y - P.y) > 62) return;
-      hitBot(r, B, WN[P.g].dmg * (m.hs ? HEAD_MUL : BODY_MUL), P);
+      hitBot(r, B, WN[isMeleeW(activeW(P)) ? P.g : activeW(P)].dmg * (m.hs ? HEAD_MUL : BODY_MUL), P);
       break;
     }
     case "kill": {
@@ -706,8 +715,14 @@ function inRoomMsg(P, m, raw) {
       if (p.ty === "w") {
         const W1 = WN[p.w];
         if (!W1) return;
-        if (W1.k === "g") { if (P.g === p.w) return; const old = P.g; P.g = p.w; P.act = 0; r.pickups.splice(i, 1); if (old !== 0) dropItem(r, "w", old, P.x, P.y); }
-        else { if (P.m === p.w) return; const old = P.m; P.m = p.w; P.act = 1; r.pickups.splice(i, 1); if (old >= 0) dropItem(r, "w", old, P.x, P.y); }
+        if (SH.isSide(p.w)) { if (P.m === p.w) return; const old = P.m; P.m = p.w; P.act = 2; r.pickups.splice(i, 1); if (old >= 0) dropItem(r, "w", old, P.x, P.y); }
+        else {
+          if (P.g === p.w || P.g2 === p.w) return;
+          r.pickups.splice(i, 1);
+          if (P.g2 < 0) { P.g2 = p.w; P.act = 1; }
+          else if (P.act === 0) { const old = P.g; P.g = p.w; if (old !== 0) dropItem(r, "w", old, P.x, P.y); }
+          else { const old = P.g2; P.g2 = p.w; P.act = 1; dropItem(r, "w", old, P.x, P.y); }
+        }
         sendSt(P);
       } else { r.pickups.splice(i, 1); sendP(P, { t: "got", ty: p.ty }); }
       if (p.amb) r.respawns.push({ at: Date.now() + (p.amb === "gun" ? 20000 : p.amb === "mel" ? 25000 : 30000), ty: p.amb });
@@ -717,13 +732,14 @@ function inRoomMsg(P, m, raw) {
     case "drop": {
       if (P.out || !P.al) return;
       if (m.s === 0 && P.g !== 0) { dropItem(r, "w", P.g, P.x, P.y); P.g = 0; P.act = 0; }
-      else if (m.s === 1 && P.m >= 0) { dropItem(r, "w", P.m, P.x, P.y); P.m = -1; P.act = 0; }
+      else if (m.s === 1 && P.g2 >= 0) { dropItem(r, "w", P.g2, P.x, P.y); P.g2 = -1; P.act = 0; }
+      else if (m.s === 2 && P.m >= 0) { dropItem(r, "w", P.m, P.x, P.y); P.m = -1; P.act = 0; }
       else return;
       sendSt(P); bcastPk(r);
       break;
     }
     case "sw": {
-      if (m.s === 1 && P.m >= 0) P.act = 1; else P.act = 0;
+      if (m.s === 1 && P.g2 >= 0) P.act = 1; else if (m.s === 2 && P.m >= 0) P.act = 2; else P.act = 0;
       sendSt(P);
       break;
     }
@@ -906,7 +922,7 @@ function authReply(P, extra) {
 function attach(c, a, extra) {
   let P = sessions.get(a.id);
   if (P && P.ws && P.ws !== c.ws) { try { sendP(P, { t: "kicked" }); P.ws.close(); } catch (e) {} }
-  if (!P) { P = { acc: a, ws: null, room: null, nid: 0, ci: 0, x: 0, y: 0, a: 0, hp: SH.MAXHP, ep: 0, al: 1, out: false, team: a.id, g: 0, m: -1, act: 0, pts: 0, mk: 0, zk: 0, shots: [], zh: [], lastMel: 0, lastKill: 0, offAt: 0, lastSeen: Date.now() }; sessions.set(a.id, P); }
+  if (!P) { P = { acc: a, ws: null, room: null, nid: 0, ci: 0, x: 0, y: 0, a: 0, hp: SH.MAXHP, ep: 0, al: 1, out: false, team: a.id, g: 0, g2: -1, m: -1, act: 0, pts: 0, mk: 0, zk: 0, shots: [], zh: [], lastMel: 0, lastKill: 0, offAt: 0, lastSeen: Date.now() }; sessions.set(a.id, P); }
   P.ws = c.ws; P.offAt = 0; c.P = P; P.acc = a;
   authReply(P, extra);
   if (P.room) sendP(P, joinedMsg(P, P.room));
