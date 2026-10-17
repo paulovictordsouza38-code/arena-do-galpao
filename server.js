@@ -47,6 +47,8 @@ const SH = (function () {
   function fence(x, y, w, h) { S("fence", x, y, w, h, 2.4); }
   function crate(x, y, w, h, st) { S("crate", x, y, w, h, st ? 4.1 : 2.4, { v: st }); }
   function container(x, y, w, h, c) { S("container", x, y, w, h, 4.2, { c: c }); }
+  function barrel(x, y) { S("barrel", x, y, 1.5, 1.5, 1.9); }
+  function pallet(x, y) { S("pallet", x, y, 2.6, 2.6, 2.4); }
   function van(x, y, w, h) { S("van", x, y, w, h, 3.0); }
   // avião (sempre deitado no eixo x): fuselagem + asa + cauda
   function plane(cx, cy, len, span, d, c) {
@@ -68,6 +70,11 @@ const SH = (function () {
     for (i = 0; i < sx.length; i++) for (j = 0; j < ry.length; j++) S("shelf", sx[i], ry[j], 2.4, 14, 4.4);
     crate(24, 36, 3, 3); crate(60, 38, 3.2, 3.2, true); crate(78, 41, 3, 3); crate(56, 43, 2.6, 2.6);
     crate(15, 15, 3, 3); crate(84, 15, 3, 3); crate(15, 60, 3, 3); crate(84, 60, 3, 3, true);
+    // barris e paletes (cobertura extra)
+    barrel(14.2, 22); barrel(14.2, 24.0); barrel(16, 23);
+    barrel(86.4, 52); barrel(86.4, 53.9); barrel(84.6, 52.9);
+    barrel(14.2, 54); barrel(16, 55.3);
+    pallet(44, 33.4); pallet(70, 35); pallet(34, 43); pallet(48, 14.6); pallet(80, 60.6);
     // pátio
     container(98, 12, 14, 5.2, [0.75, 0.22, 0.20]); container(118, 12, 14, 5.2, [0.20, 0.40, 0.72]);
     container(98, 62, 14, 5.2, [0.90, 0.62, 0.15]); container(120, 62, 14, 5.2, [0.22, 0.55, 0.32]);
@@ -79,6 +86,10 @@ const SH = (function () {
     S("booth", 88, 76, 7, 6, 3.4);
     van(30, 4, 8, 4); van(66, 4.5, 8, 4); van(108, 4, 8, 4);
     van(3.5, 22, 4, 8); van(3.5, 48, 4, 8); van(3.5, 72, 4, 8);
+    barrel(100, 19.4); barrel(101.9, 19.9); barrel(136, 20); barrel(137.9, 20.6); barrel(100.5, 58.4); barrel(102.4, 58.9); barrel(144, 66);
+    pallet(112, 42); pallet(128, 58); pallet(94, 40);
+    barrel(160, 36); barrel(162, 36.3); barrel(214, 35.5); barrel(231, 17); barrel(233, 17.6); barrel(256, 20); barrel(236, 56);
+    pallet(190, 36); pallet(240, 28);
     crate(46, 72, 3, 3); crate(80, 86, 3, 3, true); crate(122, 88, 3, 3);
 
     // cerca entre o pátio e o aeroporto (portões abertos em y 28..46 e 78..90)
@@ -297,7 +308,7 @@ let roomSeq = 1;
 
 function makeRoom(kind, id) {
   const r = { id: id || ("z" + roomSeq++), kind, players: new Set(), zombies: [], pickups: [], respawns: [], zid: 1, pid: 1,
-    ph: kind === "z" ? "free" : "wait", phAt: Date.now(), mid: 0, playAt: 0, win: "", res: null, nextZ: 0, emptyAt: Date.now(), startTeams: 0, tick: 0 };
+    ph: kind === "z" ? "free" : "wait", phAt: Date.now(), mid: 0, playAt: 0, win: "", res: null, nextZ: 0, emptyAt: Date.now(), startTeams: 0, tick: 0, cdMs: CD_MS };
   rooms.set(r.id, r);
   resetWorld(r);
   return r;
@@ -355,7 +366,7 @@ function zTarget(r) {
   if (r.ph === "play") return Math.min(10, 3 + Math.ceil(n / 5));
   return Math.min(24, 8 + n * 2);
 }
-function fighters(r) { const o = []; for (const P of r.players) if (P.al && !P.out && P.ws && P.hp > 0) o.push(P); return o; }
+function fighters(r) { const o = []; for (const P of r.players) if (P.al && !P.out && (P.ws || P.bot) && P.hp > 0) o.push(P); return o; }
 function spawnZombie(r, fs) {
   let best = null, bd = -1;
   for (let n = 0; n < 6; n++) {
@@ -395,7 +406,7 @@ function stepZombies(r, dt, now) {
     }
     z.a = ang;
     z.hit -= dt;
-    if (tgt && bd < 2.0 && z.hit <= 0) { z.hit = 0.9; sendP(tgt, { t: "zhit", d: ZDMG }); }
+    if (tgt && bd < 2.0 && z.hit <= 0) { z.hit = 0.9; if (tgt.bot) hitBot(r, tgt, ZDMG, null); else sendP(tgt, { t: "zhit", d: ZDMG }); }
   }
 }
 function killZombie(r, z, P) {
@@ -451,12 +462,12 @@ function teamIdx(r) {
 }
 function rosterMsg(r) {
   const ti = teamIdx(r), l = [];
-  for (const Q of r.players) l.push([Q.nid, pname(Q), Q.ci, ti.get(Q), Q.mk, Q.out ? 1 : 0]);
+  for (const Q of r.players) l.push([Q.nid, pname(Q), Q.ci, ti.get(Q), Q.mk, Q.out ? 1 : 0, Q.bot ? 1 : 0]);
   return { t: "ro", l };
 }
 function bcastRoster(r) { const m = JSON.stringify(rosterMsg(r)); for (const P of r.players) sendP(P, m); }
 function matchMsg(r) {
-  const dur = r.ph === "cd" ? CD_MS : r.ph === "end" ? END_MS : r.ph === "play" ? MATCH_MS : 0;
+  const dur = r.ph === "cd" ? r.cdMs : r.ph === "end" ? END_MS : r.ph === "play" ? MATCH_MS : 0;
   let al = 0, tm = new Set();
   for (const Q of r.players) if (!Q.out) { al++; tm.add(Q.team); }
   const m = { t: "match", ph: r.ph, mid: r.mid, left: dur ? Math.max(0, Math.ceil((r.phAt + dur - Date.now()) / 1000)) : 0, kind: r.kind, al, tm: tm.size, n: r.players.size };
@@ -507,6 +518,7 @@ function startMatch(r) {
   for (const Q of r.players) {
     Q.team = teamKey(Q); ts.add(Q.team);
     Q.hp = SH.MAXHP; Q.ep = 0; Q.al = 1; Q.out = false; resetLoadout(Q); Q.pts = 0; Q.mk = 0; Q.zk = 0;
+    if (Q.bot) botLoadout(Q);
   }
   for (const Q of r.players) { const sp = pickSpawn(r, Q); Q.x = sp[0]; Q.y = sp[1]; sendP(Q, { t: "spawn", x: Q.x, y: Q.y, hp: Q.hp, ep: 0, full: 1 }); sendSt(Q); }
   r.startTeams = ts.size;
@@ -533,7 +545,7 @@ function resetRoom(r) { r.ph = isPvp(r) ? "wait" : "free"; r.phAt = Date.now(); 
 function stepRoomSecond(r, now) {
   if (isPvp(r)) {
     if (r.ph === "wait" && enoughTeams(r)) setPhase(r, "cd");
-    else if (r.ph === "cd") { if (!enoughTeams(r)) setPhase(r, "wait"); else if (now - r.phAt >= CD_MS) startMatch(r); }
+    else if (r.ph === "cd") { if (!enoughTeams(r)) setPhase(r, "wait"); else if (now - r.phAt >= r.cdMs) startMatch(r); }
     else if (r.ph === "play") {
       if (now - r.playAt >= MATCH_MS) {
         let best = null; const t = new Map();
@@ -541,7 +553,7 @@ function stepRoomSecond(r, now) {
         for (const [k, v] of t) if (!best || v > best[1]) best = [k, v];
         endMatch(r, best ? best[0] : "");
       } else checkEnd(r);
-    } else if (r.ph === "end" && now - r.phAt >= END_MS) {
+    } else if (r.ph === "end" && now - r.phAt >= (r.endMs || END_MS)) {
       for (const Q of [...r.players]) leaveRoom(Q);
       resetRoom(r);
     }
@@ -587,6 +599,21 @@ function requestPlay(P, mode) {
   go(r);
 }
 
+// ---------- Eliminação (usada por jogadores e bots) ----------
+function eliminate(r, P, killer) {
+  if (!P.al || P.out) return;
+  P.al = 0; P.hp = 0; P.ep = 0;
+  dropLoadout(P); resetLoadout(P);
+  let out = 0;
+  if (isPvp(r) && r.ph === "play") { P.out = true; out = 1; }
+  if (killer) { killer.mk++; killer.pts += 2; upgradeGun(killer); sendSt(killer); sendP(killer, { t: "got", ty: "pk" }); }
+  const mk = JSON.stringify({ t: "kill", k: killer ? pname(killer) : "Zumbi", v: pname(P), kn: killer ? killer.nid : 0, out });
+  for (const Q of r.players) sendP(Q, mk);
+  sendSt(P);
+  bcastRoster(r); bcastMatch(r);
+  if (out) checkEnd(r);
+}
+
 // ---------- Mensagens do jogo ----------
 function inRoomMsg(P, m, raw) {
   const r = P.room, W0 = SH.W, H0 = SH.H;
@@ -618,7 +645,7 @@ function inRoomMsg(P, m, raw) {
       for (const Q of r.players) if (Q !== P && Math.abs(Q.x - P.x) < 90 && Math.abs(Q.y - P.y) < 70) sendP(Q, msg);
       const inArc = (x, y) => { const dx = x - P.x, dy = y - P.y, d = Math.hypot(dx, dy); if (d > W1.range + 0.6) return false; if (d < 0.8) return true; let da = Math.atan2(dy, dx) - a; da = Math.atan2(Math.sin(da), Math.cos(da)); return Math.abs(da) < 1.0; };
       for (const z of r.zombies.slice()) if (inArc(z.x, z.y)) { z.hp -= W1.dmg; if (z.hp <= 0) killZombie(r, z, P); }
-      if (r.kind !== "z" && r.ph === "play") for (const Q of r.players) if (Q !== P && Q.al && !Q.out && Q.team !== P.team && inArc(Q.x, Q.y)) sendP(Q, { t: "mhit", n: P.nid, d: W1.dmg });
+      if (r.kind !== "z" && r.ph === "play") for (const Q of [...r.players]) if (Q !== P && Q.al && !Q.out && Q.team !== P.team && inArc(Q.x, Q.y)) { if (Q.bot) hitBot(r, Q, W1.dmg, P); else sendP(Q, { t: "mhit", n: P.nid, d: W1.dmg }); }
       break;
     }
     case "zh": {
@@ -633,6 +660,18 @@ function inRoomMsg(P, m, raw) {
       if (z.hp <= 0) killZombie(r, z, P);
       break;
     }
+    case "ph": {
+      if (P.out || !P.al || (isPvp(r) && r.ph !== "play")) return;
+      const now = Date.now();
+      P.zh = P.zh.filter((t) => now - t < 1000);
+      if (P.zh.length >= 40) return;
+      P.zh.push(now);
+      let B = null; for (const Q of r.players) if (Q.nid === m.n && Q.bot) B = Q;
+      if (!B || !B.al || B.out || B.team === P.team || B.inv > 0) return;
+      if (Math.hypot(B.x - P.x, B.y - P.y) > 62) return;
+      hitBot(r, B, WN[P.g].dmg, P);
+      break;
+    }
     case "kill": {
       const now = Date.now();
       if (!P.al || P.out || now - P.lastKill < 1500) return;
@@ -641,16 +680,8 @@ function inRoomMsg(P, m, raw) {
         killer = [...r.players].find((q) => q.nid === m.k);
         if (!killer || killer === P || killer.out || !isPvp(r) || r.ph !== "play" || killer.team === P.team) killer = null;
       }
-      P.lastKill = now; P.al = 0; P.hp = 0; P.ep = 0;
-      dropLoadout(P); resetLoadout(P);
-      let out = 0;
-      if (isPvp(r) && r.ph === "play") { P.out = true; out = 1; }
-      if (killer) { killer.mk++; killer.pts += 2; upgradeGun(killer); sendSt(killer); sendP(killer, { t: "got", ty: "pk" }); }
-      const mk = JSON.stringify({ t: "kill", k: killer ? pname(killer) : "Zumbi", v: pname(P), kn: killer ? killer.nid : 0, out });
-      for (const Q of r.players) sendP(Q, mk);
-      sendSt(P);
-      bcastRoster(r); bcastMatch(r);
-      if (out) checkEnd(r);
+      P.lastKill = now;
+      eliminate(r, P, killer);
       break;
     }
     case "resp": {
@@ -710,21 +741,152 @@ function snapFor(r, P, spectator, plist) {
   }
   return { t: "snap", p, z };
 }
-setInterval(() => {
+function startRoomLoops() {
+  const ids = [];
+  ids.push(setInterval(() => {
   const now = Date.now(), dt = 0.066;
   for (const r of rooms.values()) {
     if (!r.players.size) continue;
     r.tick++;
+    if (r.hasBots) stepBots(r, dt, now);
     stepZombies(r, dt, now);
     const plist = [...r.players];
     for (const P of plist) {
-      if (!P.ws) continue;
+      if (!P.ws || P.bot) continue;
       const spec = P.out || !P.al;
       sendP(P, snapFor(r, P, spec, plist));
     }
   }
-}, 66);
-setInterval(() => { const now = Date.now(); for (const r of [...rooms.values()]) stepRoomSecond(r, now); }, 1000);
+}, 66));
+  ids.push(setInterval(() => { const now = Date.now(); for (const r of [...rooms.values()]) stepRoomSecond(r, now); }, 1000));
+  return ids;
+}
+
+// ======================= BOTS (modo offline) =======================
+const BOT_NAMES = ["Rafa", "Bia", "Tião", "Jão", "Lu", "Cadu", "Nanda", "Zeca", "Mari", "Dudu", "Gabi", "Beto"];
+function botLoadout(B) { B.g = 1; B.m = -1; B.act = 0; }
+function addBots(r, n) {
+  r.hasBots = true;
+  for (let i = 0; i < n; i++) {
+    const B = { bot: true, ws: null, acc: { id: "bot" + (nidSeq + 1), name: BOT_NAMES[i % BOT_NAMES.length], ci: -1 }, room: r, nid: ++nidSeq,
+      shots: [], zh: [], lastMel: 0, lastKill: 0, offAt: 0, inv: 0, fireAt: 0, wa: Math.random() * 6.28, wt: 0, pts: 0, mk: 0, zk: 0, skill: 0.55 + Math.random() * 0.3 };
+    B.ci = freeCi(r); B.team = "bot" + B.nid;
+    B.hp = SH.MAXHP; B.ep = 0; B.al = 1; B.out = false; resetLoadout(B); botLoadout(B);
+    const sp = pickSpawn(r, B); B.x = sp[0]; B.y = sp[1]; B.a = Math.random() * 6.28;
+    r.players.add(B);
+  }
+}
+function hitBot(r, B, dmg, killer) {
+  if (!B.al || B.out) return;
+  if (B.ep > 0) { const a = Math.min(B.ep, dmg * 0.5); B.ep -= a; dmg -= a; }
+  B.hp -= dmg;
+  if (B.hp <= 0) eliminate(r, B, killer);
+}
+function losClear(x0, y0, x1, y1) {
+  const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 1.2);
+  for (let i = 1; i < n; i++) { const t = i / n; if (SH.pointHit(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) return false; }
+  return true;
+}
+function botRange(w) { const W1 = WN[w]; return Math.min(46, W1.spd * W1.life * 0.9); }
+function stepBots(r, dt, now) {
+  const bots = []; for (const Q of r.players) if (Q.bot && Q.al && !Q.out) bots.push(Q);
+  if (!bots.length) return;
+  const pvp = isPvp(r) && r.ph === "play";
+  if (!pvp && isPvp(r)) return;
+  const all = []; for (const Q of r.players) if (Q.al && !Q.out) all.push(Q);
+  for (const B of bots) {
+    // alvo: inimigo mais próximo com linha de visão, senão caça o humano mais próximo
+    let tgt = null, bd = 1e9, hunt = null, hd = 1e9;
+    for (const Q of all) {
+      if (Q === B || Q.team === B.team) continue;
+      const d = Math.hypot(Q.x - B.x, Q.y - B.y);
+      if (!Q.bot && d < hd) { hd = d; hunt = Q; }
+      if (d < bd && d < 42 && losClear(B.x, B.y, Q.x, Q.y)) { bd = d; tgt = Q; }
+    }
+    let zt = null, zd = 1e9;
+    for (const z of r.zombies) { const d = Math.hypot(z.x - B.x, z.y - B.y); if (d < zd && d < 16 && losClear(B.x, B.y, z.x, z.y)) { zd = d; zt = z; } }
+    let ang = B.wa, sp = 0, aim = null;
+    const rng = botRange(B.g);
+    if (tgt && (!zt || bd < zd + 4)) {
+      aim = [tgt.x, tgt.y]; const d = bd;
+      ang = Math.atan2(tgt.y - B.y, tgt.x - B.x);
+      if (d > rng * 0.65) sp = 6.2;
+      else if (d < 7) { sp = 5; ang += Math.PI; }
+      else { sp = 4.5; ang += (Math.sin(now / 700 + B.nid) > 0 ? 1.4 : -1.4); }
+    } else if (zt) {
+      aim = [zt.x, zt.y]; const d = zd;
+      ang = Math.atan2(zt.y - B.y, zt.x - B.x);
+      if (d < 6) { sp = 6; ang += Math.PI; } else sp = 0;
+    } else if (hunt) {
+      ang = Math.atan2(hunt.y - B.y, hunt.x - B.x); sp = 6.4;
+    } else {
+      B.wt -= dt; if (B.wt <= 0) { B.wt = 1.5 + Math.random() * 2; B.wa = Math.random() * 6.28; }
+      ang = B.wa; sp = 4;
+    }
+    // movimento com desvio de obstáculos
+    if (sp > 0) {
+      const offs = [0, 0.7, -0.7, 1.4, -1.4, 2.2];
+      let moved = false;
+      for (const off of offs) {
+        const a2 = ang + off, nx = B.x + Math.cos(a2) * sp * dt, ny = B.y + Math.sin(a2) * sp * dt;
+        if (!SH.circleHit(nx, ny, SH.PR)) { B.x = nx; B.y = ny; moved = true; break; }
+        if (!SH.circleHit(nx, B.y, SH.PR)) { B.x = nx; moved = true; break; }
+        if (!SH.circleHit(B.x, ny, SH.PR)) { B.y = ny; moved = true; break; }
+      }
+      if (!moved) B.wt = 0;
+    }
+    if (aim) {
+      const da = Math.atan2(aim[1] - B.y, aim[0] - B.x);
+      let diff = Math.atan2(Math.sin(da - B.a), Math.cos(da - B.a));
+      B.a += diff * Math.min(1, dt * 9);
+      // atirar
+      const W1 = WN[B.g], gap = (1000 / W1.rate) * (1.5 + (1 - B.skill) * 2);
+      if (now >= B.fireAt && Math.abs(diff) < 0.35) {
+        B.fireAt = now + gap;
+        const err = (Math.random() - 0.5) * (0.16 + (1 - B.skill) * 0.28);
+        const sa = B.a + err;
+        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa) });
+        for (const Q of r.players) if (Q !== B && !Q.bot && Math.abs(Q.x - B.x) < 90 && Math.abs(Q.y - B.y) < 70) sendP(Q, msg);
+        // bots contra bots e zumbis: acerto por varredura (contra o humano, o cliente decide com a própria bala)
+        const dx = Math.cos(sa), dy = Math.sin(sa), reach = W1.spd * W1.life;
+        let best = null, bt = reach;
+        const consider = (o, isZ) => {
+          const rx = o.x - B.x, ry = o.y - B.y, t = rx * dx + ry * dy;
+          if (t < 0 || t > bt) return;
+          if (Math.abs(rx * dy - ry * dx) > (isZ ? ZR : SH.PR) + 0.25) return;
+          if (!losClear(B.x, B.y, o.x, o.y)) return;
+          bt = t; best = [o, isZ];
+        };
+        for (const Q of all) if (Q !== B && Q.bot && Q.team !== B.team) consider(Q, false);
+        for (const z of r.zombies) consider(z, true);
+        if (best) {
+          const dmg = W1.dmg * (W1.pel || 1) * 0.6;
+          if (best[1]) { best[0].hp -= dmg; if (best[0].hp <= 0) killZombie(r, best[0], B); }
+          else hitBot(r, best[0], dmg, B);
+        }
+      }
+    }
+    // pegar item próximo (arma melhor, curativo)
+    if (r.tick % 8 === (B.nid % 8)) {
+      for (let i = 0; i < r.pickups.length; i++) {
+        const p = r.pickups[i];
+        if (Math.hypot(p.x - B.x, p.y - B.y) > 2.2) continue;
+        if (p.ty === "w") {
+          const W1 = WN[p.w];
+          if (W1.k !== "g" || SH.PROG.indexOf(p.w) <= SH.PROG.indexOf(B.g) && p.w !== 3 && p.w !== 8) continue;
+          if (p.w === B.g) continue;
+          B.g = p.w; r.pickups.splice(i, 1);
+        } else if (p.ty === "b" && B.hp < SH.MAXHP * 0.8) { B.hp = Math.min(SH.MAXHP, B.hp + 60); r.pickups.splice(i, 1); }
+        else if (p.ty === "m" && B.hp < SH.MAXHP * 0.6) { B.hp = SH.MAXHP; r.pickups.splice(i, 1); }
+        else continue;
+        if (p.amb) r.respawns.push({ at: now + 25000, ty: p.amb });
+        bcastPk(r);
+        break;
+      }
+    }
+    B.x = Math.max(1, Math.min(SH.W - 1, B.x)); B.y = Math.max(1, Math.min(SH.H - 1, B.y));
+  }
+}
 
 // ======================= CONEXÕES =======================
 function authReply(P, extra) {
@@ -897,6 +1059,7 @@ wss.on("connection", (ws) => {
   ws.on("error", () => {});
 });
 
+startRoomLoops();
 setInterval(() => {
   const now = Date.now();
   for (const [id, P] of sessions) {

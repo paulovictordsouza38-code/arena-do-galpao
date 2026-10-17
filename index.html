@@ -155,6 +155,8 @@ button { font-family: inherit; }
   #bWork { grid-column: 1 / 3; font-size: 22px !important; padding: 12px !important; }
   #lbhint { display: none; }
 }
+#vig{position:fixed;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(8,6,16,.38) 100%)}
+#vig,#hud~#vig{display:block}
 </style>
 </head>
 <body>
@@ -205,9 +207,10 @@ button { font-family: inherit; }
   <h3 id="ressub"></h3>
   <ol id="reslist"></ol>
   <div id="resnext" style="font-size:14px;color:var(--ink-dim)"></div>
-  <button id="resLobby" class="btn" type="button">Voltar pro almoço</button>
+  <button id="resAgain" class="btn" type="button" hidden>Jogar de novo</button> <button id="resLobby" class="btn alt" type="button">Voltar pro almoço</button>
 </div>
 
+<div id="vig"></div>
 <div id="notice"></div>
 
 <div id="login" class="screen">
@@ -219,6 +222,7 @@ button { font-family: inherit; }
       <input id="nick" class="field" maxlength="12" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ex.: giro">
       <button id="go" class="btn" style="margin-top:10px;font-size:20px;padding:12px 22px" type="submit">Entrar</button>
     </form>
+    <button id="offGo" class="btn alt" style="margin-top:8px" type="button">Jogar offline (treino com bots)</button>
     <button id="haveAcct" class="linkb" type="button">Já tenho conta (usar código de recuperação)</button>
     <form id="recForm" hidden>
       <label class="lab" for="rname">Nome da conta</label>
@@ -246,6 +250,7 @@ button { font-family: inherit; }
     <button id="bDuo" class="btn alt" type="button">Duo (2 x 2)</button>
     <button id="bFriends" class="btn alt" type="button">Amigos+ <span id="reqn"></span></button>
     <button id="bZomb" class="btn alt" type="button">Só zumbis</button>
+    <button id="bOff" class="btn alt" type="button">Offline (treino)</button>
   </div>
   <div id="lbhint">Arraste o boneco para girar</div>
 </div>
@@ -334,6 +339,8 @@ var SH = (function () {
   function fence(x, y, w, h) { S("fence", x, y, w, h, 2.4); }
   function crate(x, y, w, h, st) { S("crate", x, y, w, h, st ? 4.1 : 2.4, { v: st }); }
   function container(x, y, w, h, c) { S("container", x, y, w, h, 4.2, { c: c }); }
+  function barrel(x, y) { S("barrel", x, y, 1.5, 1.5, 1.9); }
+  function pallet(x, y) { S("pallet", x, y, 2.6, 2.6, 2.4); }
   function van(x, y, w, h) { S("van", x, y, w, h, 3.0); }
   // avião (sempre deitado no eixo x): fuselagem + asa + cauda
   function plane(cx, cy, len, span, d, c) {
@@ -355,6 +362,11 @@ var SH = (function () {
     for (i = 0; i < sx.length; i++) for (j = 0; j < ry.length; j++) S("shelf", sx[i], ry[j], 2.4, 14, 4.4);
     crate(24, 36, 3, 3); crate(60, 38, 3.2, 3.2, true); crate(78, 41, 3, 3); crate(56, 43, 2.6, 2.6);
     crate(15, 15, 3, 3); crate(84, 15, 3, 3); crate(15, 60, 3, 3); crate(84, 60, 3, 3, true);
+    // barris e paletes (cobertura extra)
+    barrel(14.2, 22); barrel(14.2, 24.0); barrel(16, 23);
+    barrel(86.4, 52); barrel(86.4, 53.9); barrel(84.6, 52.9);
+    barrel(14.2, 54); barrel(16, 55.3);
+    pallet(44, 33.4); pallet(70, 35); pallet(34, 43); pallet(48, 14.6); pallet(80, 60.6);
     // pátio
     container(98, 12, 14, 5.2, [0.75, 0.22, 0.20]); container(118, 12, 14, 5.2, [0.20, 0.40, 0.72]);
     container(98, 62, 14, 5.2, [0.90, 0.62, 0.15]); container(120, 62, 14, 5.2, [0.22, 0.55, 0.32]);
@@ -366,6 +378,10 @@ var SH = (function () {
     S("booth", 88, 76, 7, 6, 3.4);
     van(30, 4, 8, 4); van(66, 4.5, 8, 4); van(108, 4, 8, 4);
     van(3.5, 22, 4, 8); van(3.5, 48, 4, 8); van(3.5, 72, 4, 8);
+    barrel(100, 19.4); barrel(101.9, 19.9); barrel(136, 20); barrel(137.9, 20.6); barrel(100.5, 58.4); barrel(102.4, 58.9); barrel(144, 66);
+    pallet(112, 42); pallet(128, 58); pallet(94, 40);
+    barrel(160, 36); barrel(162, 36.3); barrel(214, 35.5); barrel(231, 17); barrel(233, 17.6); barrel(256, 20); barrel(236, 56);
+    pallet(190, 36); pallet(240, 28);
     crate(46, 72, 3, 3); crate(80, 86, 3, 3, true); crate(122, 88, 3, 3);
 
     // cerca entre o pátio e o aeroporto (portões abertos em y 28..46 e 78..90)
@@ -447,6 +463,766 @@ var SH = (function () {
     GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, freePoint: freePoint, ZONES: ZONES };
 })();
 
+/* ============ Modo offline: a sala do servidor roda aqui dentro do navegador ============ */
+var LOCAL = (function () {
+  "use strict";
+  var sessions = new Map(), parties = new Map(), PERMANENT = true, nidSeq = 1;
+  function sendP(P, o) { if (P.ws && P.ws.readyState === 1) P.ws.send(typeof o === "string" ? o : JSON.stringify(o)); }
+  function pushFriendsOf() {} function pushParty() {}
+  function num(v, lo, hi, def) { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; }
+  function r1(v) { return Math.round(v * 10) / 10; }
+  function r2(v) { return Math.round(v * 100) / 100; }
+
+// ======================= SALAS =======================
+const MAXP = 30, JOIN_WINDOW = 180000, MATCH_MS = 600000, CD_MS = 10000, END_MS = 10000, GHOST_MS = 20000;
+const ZHP = 90, ZSPEED = 3.4, ZR = 0.9, ZDMG = 14;
+const WN = SH.WEAPONS;
+const rooms = new Map();
+let roomSeq = 1;
+
+function makeRoom(kind, id) {
+  const r = { id: id || ("z" + roomSeq++), kind, players: new Set(), zombies: [], pickups: [], respawns: [], zid: 1, pid: 1,
+    ph: kind === "z" ? "free" : "wait", phAt: Date.now(), mid: 0, playAt: 0, win: "", res: null, nextZ: 0, emptyAt: Date.now(), startTeams: 0, tick: 0, cdMs: CD_MS };
+  rooms.set(r.id, r);
+  resetWorld(r);
+  return r;
+}
+
+
+
+function isPvp(r) { return r.kind !== "z"; }
+function teamKey(P) {
+  const pt = parties.get(P.acc.id);
+  return pt && pt.m.length === 2 ? pt.m.slice().sort().join("+") : P.acc.id;
+}
+function pname(P) { return P.acc.name; }
+function activeW(P) { return P.act === 1 && P.m >= 0 ? P.m : P.g; }
+
+// ---------- Itens do chão ----------
+function pickW(tbl) { let t = 0, i; for (i = 0; i < tbl.length; i++) t += tbl[i]; let x = Math.random() * t; for (i = 0; i < tbl.length; i++) { x -= tbl[i]; if (x <= 0) return i; } return 1; }
+function spawnAmbient(r, ty) {
+  const zone = ty === "mel" ? SH.ZONES.gal : SH.ZONES.all;
+  let pos = null;
+  for (let n = 0; n < 8; n++) {
+    const p = SH.freePoint(zone);
+    let ok = true;
+    for (const q of r.pickups) if (Math.hypot(q.x - p[0], q.y - p[1]) < 5) { ok = false; break; }
+    if (ok) { pos = p; break; }
+  }
+  if (!pos) return;
+  const it = { i: r.pid++, ty: "w", w: 0, x: pos[0], y: pos[1], amb: ty, exp: 0 };
+  if (ty === "gun") it.w = pickW(SH.GUN_W);
+  else if (ty === "mel") it.w = pickW(SH.MELEE_W);
+  else it.ty = ty;
+  r.pickups.push(it);
+}
+function dropItem(r, ty, w, x, y, life) {
+  const a = Math.random() * 6.28, d = 0.6 + Math.random() * 0.8;
+  r.pickups.push({ i: r.pid++, ty, w, x: r1(x + Math.cos(a) * d), y: r1(y + Math.sin(a) * d), amb: "", exp: Date.now() + (life || 60000) });
+}
+function pkList(r) { return r.pickups.map((p) => [p.i, p.ty, p.w, p.x, p.y]); }
+function bcastPk(r) { const m = JSON.stringify({ t: "pk", l: pkList(r) }); for (const P of r.players) sendP(P, m); }
+function resetWorld(r) {
+  r.pickups = []; r.respawns = []; r.zombies = [];
+  const pv = isPvp(r);
+  const guns = pv ? 9 : 7, mel = pv ? 6 : 4;
+  for (let i = 0; i < guns; i++) spawnAmbient(r, "gun");
+  for (let i = 0; i < mel; i++) spawnAmbient(r, "mel");
+  for (let i = 0; i < 4; i++) spawnAmbient(r, "b");
+  for (let i = 0; i < 2; i++) spawnAmbient(r, "m");
+}
+
+// ---------- Zumbis ----------
+function zTarget(r) {
+  const n = r.players.size;
+  if (n === 0) return 0;
+  if (r.kind === "z") return Math.min(30, 6 + n * 3);
+  if (r.ph === "play") return Math.min(10, 3 + Math.ceil(n / 5));
+  return Math.min(24, 8 + n * 2);
+}
+function fighters(r) { const o = []; for (const P of r.players) if (P.al && !P.out && (P.ws || P.bot) && P.hp > 0) o.push(P); return o; }
+function spawnZombie(r, fs) {
+  let best = null, bd = -1;
+  for (let n = 0; n < 6; n++) {
+    const p = SH.freePoint(SH.ZONES.all);
+    let d = 1e9;
+    for (const f of fs) d = Math.min(d, Math.hypot(f.x - p[0], f.y - p[1]));
+    if (d > bd) { bd = d; best = p; }
+    if (bd > 30) break;
+  }
+  if (best && bd > 18) r.zombies.push({ i: r.zid++, x: best[0], y: best[1], a: Math.random() * 6.28, hp: ZHP, hit: 0, wander: 0, wa: 0, idle: false });
+}
+function stepZombies(r, dt, now) {
+  const fs = fighters(r);
+  if (r.zombies.length < zTarget(r) && now >= r.nextZ) { spawnZombie(r, fs); r.nextZ = now + 700; }
+  for (const z of r.zombies) {
+    let tgt = null, bd = 45;
+    for (const f of fs) { const d = Math.hypot(f.x - z.x, f.y - z.y); if (d < bd) { bd = d; tgt = f; } }
+    let ang = z.a, sp = 0;
+    if (tgt) { ang = Math.atan2(tgt.y - z.y, tgt.x - z.x); sp = bd > 1.5 ? ZSPEED : 0; }
+    else {
+      z.wander -= dt;
+      if (z.wander <= 0) { z.wander = 1.5 + Math.random() * 2.5; z.wa = Math.random() * 6.283; z.idle = Math.random() < 0.3; }
+      ang = z.wa; sp = z.idle ? 0 : 1.4;
+    }
+    let moved = false;
+    if (sp > 0) {
+      const tries = tgt ? [0, 0.7, -0.7, 1.4, -1.4] : [0];
+      for (const off of tries) {
+        const a2 = ang + off, nx = z.x + Math.cos(a2) * sp * dt, ny = z.y + Math.sin(a2) * sp * dt;
+        let ok = false;
+        if (!SH.circleHit(nx, ny, ZR)) { z.x = nx; z.y = ny; ok = true; }
+        else if (!SH.circleHit(nx, z.y, ZR)) { z.x = nx; ok = true; }
+        else if (!SH.circleHit(z.x, ny, ZR)) { z.y = ny; ok = true; }
+        if (ok) { moved = true; if (off) ang = a2; break; }
+      }
+      if (!moved && !tgt) z.wander = 0;
+    }
+    z.a = ang;
+    z.hit -= dt;
+    if (tgt && bd < 2.0 && z.hit <= 0) { z.hit = 0.9; if (tgt.bot) hitBot(r, tgt, ZDMG, null); else sendP(tgt, { t: "zhit", d: ZDMG }); }
+  }
+}
+function killZombie(r, z, P) {
+  const i = r.zombies.indexOf(z);
+  if (i >= 0) r.zombies.splice(i, 1);
+  const x = Math.random();
+  if (x < 0.22) dropItem(r, "w", 10, z.x, z.y);
+  else if (x < 0.40) dropItem(r, "w", 9, z.x, z.y);
+  else if (x < 0.62) dropItem(r, "b", 0, z.x, z.y);
+  else if (x < 0.74) dropItem(r, "m", 0, z.x, z.y);
+  bcastPk(r);
+  if (P) {
+    P.zk++; P.pts += 1;
+    sendP(P, { t: "got", ty: "zk" });
+    if (P.zk % 4 === 0) upgradeGun(P);
+    sendSt(P);
+  }
+}
+
+// ---------- Estado de cada jogador ----------
+function upgradeGun(P) {
+  const i = SH.PROG.indexOf(P.g);
+  if (i >= 0 && i < SH.PROG.length - 1) { P.g = SH.PROG[i + 1]; if (P.act === 0) {} }
+}
+function sendSt(P) { sendP(P, { t: "st", g: P.g, m: P.m, act: P.act, pts: P.pts, mk: P.mk }); }
+function resetLoadout(P) { P.g = 0; P.m = -1; P.act = 0; }
+function dropLoadout(P) {
+  const r = P.room; if (!r) return;
+  if (P.g !== 0) dropItem(r, "w", P.g, P.x, P.y);
+  if (P.m >= 0) dropItem(r, "w", P.m, P.x, P.y);
+  if (P.g !== 0 || P.m >= 0) bcastPk(r);
+}
+function pickSpawn(r, P) {
+  let best = null, bd = -1;
+  for (let n = 0; n < 10; n++) {
+    const p = SH.freePoint(SH.ZONES.all);
+    let d = 1e9;
+    for (const Q of r.players) if (Q !== P && Q.al && !Q.out) d = Math.min(d, Math.hypot(Q.x - p[0], Q.y - p[1]));
+    for (const z of r.zombies) d = Math.min(d, Math.hypot(z.x - p[0], z.y - p[1]) * 1.5);
+    if (d > bd) { bd = d; best = p; }
+  }
+  return best || [48, 40];
+}
+function freeCi(r) {
+  const used = new Set(); for (const Q of r.players) used.add(Q.ci);
+  for (let i = 0; i < 8; i++) if (!used.has(i)) return i;
+  return Math.floor(Math.random() * 8);
+}
+function teamIdx(r) {
+  const m = new Map(); let n = 0; const out = new Map();
+  for (const Q of r.players) { if (!m.has(Q.team)) m.set(Q.team, n++); out.set(Q, m.get(Q.team)); }
+  return out;
+}
+function rosterMsg(r) {
+  const ti = teamIdx(r), l = [];
+  for (const Q of r.players) l.push([Q.nid, pname(Q), Q.ci, ti.get(Q), Q.mk, Q.out ? 1 : 0, Q.bot ? 1 : 0]);
+  return { t: "ro", l };
+}
+function bcastRoster(r) { const m = JSON.stringify(rosterMsg(r)); for (const P of r.players) sendP(P, m); }
+function matchMsg(r) {
+  const dur = r.ph === "cd" ? r.cdMs : r.ph === "end" ? END_MS : r.ph === "play" ? MATCH_MS : 0;
+  let al = 0, tm = new Set();
+  for (const Q of r.players) if (!Q.out) { al++; tm.add(Q.team); }
+  const m = { t: "match", ph: r.ph, mid: r.mid, left: dur ? Math.max(0, Math.ceil((r.phAt + dur - Date.now()) / 1000)) : 0, kind: r.kind, al, tm: tm.size, n: r.players.size };
+  if (r.ph === "end") { m.win = r.win; m.res = r.res; }
+  return m;
+}
+function bcastMatch(r) { const m = JSON.stringify(matchMsg(r)); for (const P of r.players) sendP(P, m); }
+function setPhase(r, ph) { r.ph = ph; r.phAt = Date.now(); bcastMatch(r); }
+
+function initPlayerState(P, r) {
+  P.room = r; P.nid = ++nidSeq;
+  let used = false; for (const Q of r.players) if (Q.ci === P.acc.ci) used = true;
+  P.ci = (P.acc.ci >= 0 && P.acc.ci < 8 && !used) ? P.acc.ci : freeCi(r);
+  P.hp = SH.MAXHP; P.ep = 0; P.al = 1; P.out = false; P.team = teamKey(P);
+  resetLoadout(P); P.pts = 0; P.mk = 0; P.zk = 0; P.shots = []; P.zh = []; P.lastMel = 0; P.lastKill = 0; P.offAt = 0;
+  const sp = pickSpawn(r, P); P.x = sp[0]; P.y = sp[1]; P.a = 0;
+}
+function joinedMsg(P, r) {
+  return { t: "joined", kind: r.kind, nid: P.nid, ci: P.ci, x: P.x, y: P.y, al: P.al && !P.out ? 1 : 0, out: P.out ? 1 : 0,
+    g: P.g, m: P.m, act: P.act, pts: P.pts, mk: P.mk, hp: P.hp, ep: P.ep, pk: pkList(r), match: matchMsg(r), ro: rosterMsg(r).l, perm: PERMANENT };
+}
+function enterRoom(P, r) {
+  leaveRoom(P, true);
+  initPlayerState(P, r);
+  r.players.add(P); r.emptyAt = 0;
+  sendP(P, joinedMsg(P, r));
+  bcastRoster(r); bcastMatch(r);
+  pushFriendsOf(P.acc); pushParty([...(parties.get(P.acc.id) ? parties.get(P.acc.id).m : [])]);
+}
+function leaveRoom(P, silent) {
+  const r = P.room; if (!r) return;
+  if (!P.out) dropLoadout(P);
+  r.players.delete(P); P.room = null;
+  if (r.players.size === 0) r.emptyAt = Date.now();
+  if (!silent) { sendP(P, { t: "tolobby" }); }
+  if (isPvp(r) && r.ph === "play") checkEnd(r);
+  else if (isPvp(r) && r.ph === "cd") { if (!enoughTeams(r)) setPhase(r, "wait"); }
+  bcastRoster(r);
+  if (!silent) { pushFriendsOf(P.acc); pushParty([...(parties.get(P.acc.id) ? parties.get(P.acc.id).m : [])]); }
+}
+
+// ---------- Fases da partida ----------
+function enoughTeams(r) { const t = new Set(); for (const Q of r.players) if (!Q.out) t.add(Q.team); return t.size >= 2; }
+function startMatch(r) {
+  r.mid++; r.playAt = Date.now(); r.win = ""; r.res = null;
+  resetWorld(r);
+  const ts = new Set();
+  for (const Q of r.players) {
+    Q.team = teamKey(Q); ts.add(Q.team);
+    Q.hp = SH.MAXHP; Q.ep = 0; Q.al = 1; Q.out = false; resetLoadout(Q); Q.pts = 0; Q.mk = 0; Q.zk = 0;
+    if (Q.bot) botLoadout(Q);
+  }
+  for (const Q of r.players) { const sp = pickSpawn(r, Q); Q.x = sp[0]; Q.y = sp[1]; sendP(Q, { t: "spawn", x: Q.x, y: Q.y, hp: Q.hp, ep: 0, full: 1 }); sendSt(Q); }
+  r.startTeams = ts.size;
+  setPhase(r, "play");
+  bcastRoster(r); bcastPk(r);
+}
+function endMatch(r, winTeam) {
+  const list = [...r.players];
+  list.sort((a, b) => (a.out - b.out) || (b.mk - a.mk));
+  const names = winTeam ? list.filter((q) => q.team === winTeam).map(pname) : [];
+  r.win = names.join(" e ");
+  r.res = list.slice(0, 12).map((q) => ({ n: pname(q), k: q.mk, o: q.out ? 1 : 0, w: winTeam && q.team === winTeam ? 1 : 0 }));
+  r.zombies = [];
+  setPhase(r, "end");
+}
+function aliveTeams(r) { const t = new Map(); for (const Q of r.players) if (!Q.out) t.set(Q.team, (t.get(Q.team) || 0) + 1); return t; }
+function checkEnd(r) {
+  if (r.ph !== "play") return;
+  const t = aliveTeams(r);
+  if (t.size <= 1 && r.startTeams >= 2) endMatch(r, t.size ? [...t.keys()][0] : "");
+  else if (r.players.size === 0) resetRoom(r);
+}
+function resetRoom(r) { r.ph = isPvp(r) ? "wait" : "free"; r.phAt = Date.now(); r.win = ""; r.res = null; resetWorld(r); }
+function stepRoomSecond(r, now) {
+  if (isPvp(r)) {
+    if (r.ph === "wait" && enoughTeams(r)) setPhase(r, "cd");
+    else if (r.ph === "cd") { if (!enoughTeams(r)) setPhase(r, "wait"); else if (now - r.phAt >= r.cdMs) startMatch(r); }
+    else if (r.ph === "play") {
+      if (now - r.playAt >= MATCH_MS) {
+        let best = null; const t = new Map();
+        for (const Q of r.players) if (!Q.out) t.set(Q.team, (t.get(Q.team) || 0) + Q.mk);
+        for (const [k, v] of t) if (!best || v > best[1]) best = [k, v];
+        endMatch(r, best ? best[0] : "");
+      } else checkEnd(r);
+    } else if (r.ph === "end" && now - r.phAt >= (r.endMs || END_MS)) {
+      for (const Q of [...r.players]) leaveRoom(Q);
+      resetRoom(r);
+    }
+    if (r.players.size) bcastMatch(r);
+  }
+  // fantasmas (conexão caiu) saem depois de um tempo
+  for (const Q of [...r.players]) if (!Q.ws && Q.offAt && now - Q.offAt > GHOST_MS) leaveRoom(Q, true);
+  // itens
+  let ch = false;
+  for (let i = r.respawns.length - 1; i >= 0; i--) if (r.respawns[i].at <= now) { spawnAmbient(r, r.respawns[i].ty); r.respawns.splice(i, 1); ch = true; }
+  const nb = r.pickups.length;
+  r.pickups = r.pickups.filter((p) => !p.exp || p.exp > now);
+  if (r.pickups.length !== nb) ch = true;
+  if (ch) bcastPk(r);
+  if (r.kind === "z" && r.players.size === 0 && r.emptyAt && now - r.emptyAt > 15000) rooms.delete(r.id);
+}
+
+// ---------- Entrada nas salas (Trabalhar / Duo / Só zumbis) ----------
+function zoneRoom() {
+  for (const r of rooms.values()) if (r.kind === "z" && r.players.size < 15) return r;
+  return makeRoom("z");
+}
+function lobbyMembers(P) {
+  const pt = parties.get(P.acc.id), out = [P];
+  if (pt) for (const id of pt.m) { const Q = sessions.get(id); if (Q && Q !== P && Q.ws && !Q.room) out.push(Q); }
+  return out;
+}
+function requestPlay(P, mode) {
+  if (!P.ws) return;
+  const mem = lobbyMembers(P);
+  const go = (r, notice) => { for (const Q of mem) { enterRoom(Q, r); if (notice) sendP(Q, { t: "notice", s: notice }); } };
+  if (mode === "z") return go(zoneRoom());
+  const pt = parties.get(P.acc.id);
+  if (mode === "duo") {
+    if (!pt || pt.m.length !== 2) return sendP(P, { t: "notice", s: "Para jogar em Duo, forme uma dupla com um amigo primeiro." });
+    if (mem.length !== 2) return sendP(P, { t: "notice", s: "Seu parceiro precisa estar no almoço (lobby) para entrarem juntos." });
+  }
+  const r = mode === "duo" ? DUOROOM : GALPAO;
+  const n = mem.length;
+  if (r.ph === "end") return sendP(P, { t: "notice", s: "A partida está terminando. Tente de novo em instantes." });
+  if (r.players.size + n > MAXP) return go(zoneRoom(), mode === "duo" ? "Sala Duo lotada (30/30). Você foi para uma sala só de zumbis." : "Galpão lotado (30/30). Você foi para uma sala só de zumbis.");
+  if (r.ph === "play" && Date.now() - r.playAt > JOIN_WINDOW) return go(zoneRoom(), "Partida já passou de 3 min: não dá mais para entrar. Sala só de zumbis.");
+  go(r);
+}
+
+// ---------- Eliminação (usada por jogadores e bots) ----------
+function eliminate(r, P, killer) {
+  if (!P.al || P.out) return;
+  P.al = 0; P.hp = 0; P.ep = 0;
+  dropLoadout(P); resetLoadout(P);
+  let out = 0;
+  if (isPvp(r) && r.ph === "play") { P.out = true; out = 1; }
+  if (killer) { killer.mk++; killer.pts += 2; upgradeGun(killer); sendSt(killer); sendP(killer, { t: "got", ty: "pk" }); }
+  const mk = JSON.stringify({ t: "kill", k: killer ? pname(killer) : "Zumbi", v: pname(P), kn: killer ? killer.nid : 0, out });
+  for (const Q of r.players) sendP(Q, mk);
+  sendSt(P);
+  bcastRoster(r); bcastMatch(r);
+  if (out) checkEnd(r);
+}
+
+// ---------- Mensagens do jogo ----------
+function inRoomMsg(P, m, raw) {
+  const r = P.room, W0 = SH.W, H0 = SH.H;
+  switch (m.t) {
+    case "s": {
+      P.x = num(m.x, 0, W0, P.x); P.y = num(m.y, 0, H0, P.y); P.a = num(m.a, -7, 7, P.a);
+      P.hp = num(m.hp, 0, SH.MAXHP, P.hp); P.ep = num(m.ep, 0, SH.MAXEP, P.ep);
+      P.al = (m.al && !P.out) ? 1 : 0;
+      break;
+    }
+    case "shot": {
+      if (P.out || !P.al) return;
+      const now = Date.now();
+      P.shots = P.shots.filter((t) => now - t < 1000);
+      if (P.shots.length >= 16) return;
+      P.shots.push(now);
+      const w = P.g;
+      const msg = JSON.stringify({ t: "shot", n: P.nid, w, x: r1(num(m.x, 0, W0, P.x)), y: r1(num(m.y, 0, H0, P.y)), a: r2(num(m.a, -7, 7, 0)) });
+      for (const Q of r.players) if (Q !== P && Math.abs(Q.x - P.x) < 90 && Math.abs(Q.y - P.y) < 70) sendP(Q, msg);
+      break;
+    }
+    case "mel": {
+      if (P.out || !P.al || P.m < 0) return;
+      const W1 = WN[P.m], now = Date.now();
+      if (now - P.lastMel < 1000 / W1.rate - 40) return;
+      P.lastMel = now;
+      const a = num(m.a, -7, 7, P.a);
+      const msg = JSON.stringify({ t: "mel", n: P.nid, a: r2(a), w: P.m });
+      for (const Q of r.players) if (Q !== P && Math.abs(Q.x - P.x) < 90 && Math.abs(Q.y - P.y) < 70) sendP(Q, msg);
+      const inArc = (x, y) => { const dx = x - P.x, dy = y - P.y, d = Math.hypot(dx, dy); if (d > W1.range + 0.6) return false; if (d < 0.8) return true; let da = Math.atan2(dy, dx) - a; da = Math.atan2(Math.sin(da), Math.cos(da)); return Math.abs(da) < 1.0; };
+      for (const z of r.zombies.slice()) if (inArc(z.x, z.y)) { z.hp -= W1.dmg; if (z.hp <= 0) killZombie(r, z, P); }
+      if (r.kind !== "z" && r.ph === "play") for (const Q of [...r.players]) if (Q !== P && Q.al && !Q.out && Q.team !== P.team && inArc(Q.x, Q.y)) { if (Q.bot) hitBot(r, Q, W1.dmg, P); else sendP(Q, { t: "mhit", n: P.nid, d: W1.dmg }); }
+      break;
+    }
+    case "zh": {
+      if (P.out || !P.al) return;
+      const now = Date.now();
+      P.zh = P.zh.filter((t) => now - t < 1000);
+      if (P.zh.length >= 40) return;
+      P.zh.push(now);
+      const z = r.zombies.find((q) => q.i === m.i);
+      if (!z || Math.hypot(z.x - P.x, z.y - P.y) > 60) return;
+      z.hp -= WN[P.g].dmg;
+      if (z.hp <= 0) killZombie(r, z, P);
+      break;
+    }
+    case "ph": {
+      if (P.out || !P.al || (isPvp(r) && r.ph !== "play")) return;
+      const now = Date.now();
+      P.zh = P.zh.filter((t) => now - t < 1000);
+      if (P.zh.length >= 40) return;
+      P.zh.push(now);
+      let B = null; for (const Q of r.players) if (Q.nid === m.n && Q.bot) B = Q;
+      if (!B || !B.al || B.out || B.team === P.team || B.inv > 0) return;
+      if (Math.hypot(B.x - P.x, B.y - P.y) > 62) return;
+      hitBot(r, B, WN[P.g].dmg, P);
+      break;
+    }
+    case "kill": {
+      const now = Date.now();
+      if (!P.al || P.out || now - P.lastKill < 1500) return;
+      let killer = null;
+      if (m.k !== "z") {
+        killer = [...r.players].find((q) => q.nid === m.k);
+        if (!killer || killer === P || killer.out || !isPvp(r) || r.ph !== "play" || killer.team === P.team) killer = null;
+      }
+      P.lastKill = now;
+      eliminate(r, P, killer);
+      break;
+    }
+    case "resp": {
+      if (P.out || P.al) return;
+      if (isPvp(r) && r.ph === "play") return;
+      const sp = pickSpawn(r, P); P.x = sp[0]; P.y = sp[1]; P.hp = SH.MAXHP; P.ep = 0; P.al = 1;
+      sendP(P, { t: "spawn", x: P.x, y: P.y, hp: P.hp, ep: 0, full: 0 }); sendSt(P);
+      break;
+    }
+    case "grab": {
+      if (P.out || !P.al) return;
+      const i = r.pickups.findIndex((p) => p.i === m.i);
+      if (i < 0) return;
+      const p = r.pickups[i];
+      if (Math.hypot(p.x - P.x, p.y - P.y) > 5) return;
+      if (p.ty === "w") {
+        const W1 = WN[p.w];
+        if (!W1) return;
+        if (W1.k === "g") { if (P.g === p.w) return; const old = P.g; P.g = p.w; P.act = 0; r.pickups.splice(i, 1); if (old !== 0) dropItem(r, "w", old, P.x, P.y); }
+        else { if (P.m === p.w) return; const old = P.m; P.m = p.w; P.act = 1; r.pickups.splice(i, 1); if (old >= 0) dropItem(r, "w", old, P.x, P.y); }
+        sendSt(P);
+      } else { r.pickups.splice(i, 1); sendP(P, { t: "got", ty: p.ty }); }
+      if (p.amb) r.respawns.push({ at: Date.now() + (p.amb === "gun" ? 20000 : p.amb === "mel" ? 25000 : 30000), ty: p.amb });
+      bcastPk(r);
+      break;
+    }
+    case "drop": {
+      if (P.out || !P.al) return;
+      if (m.s === 0 && P.g !== 0) { dropItem(r, "w", P.g, P.x, P.y); P.g = 0; P.act = 0; }
+      else if (m.s === 1 && P.m >= 0) { dropItem(r, "w", P.m, P.x, P.y); P.m = -1; P.act = 0; }
+      else return;
+      sendSt(P); bcastPk(r);
+      break;
+    }
+    case "sw": {
+      if (m.s === 1 && P.m >= 0) P.act = 1; else P.act = 0;
+      sendSt(P);
+      break;
+    }
+    case "resume": break;
+  }
+}
+
+// ---------- Envio de estado (15 vezes por segundo) ----------
+function snapFor(r, P, spectator, plist) {
+  const p = [], z = [];
+  for (const Q of plist) {
+    if (Q === P) continue;
+    const vis = Q.al && !Q.out;
+    if (!vis) continue;
+    if (!spectator && (Math.abs(Q.x - P.x) > 72 || Math.abs(Q.y - P.y) > 52)) continue;
+    p.push([Q.nid, r1(Q.x), r1(Q.y), r2(Q.a), Math.round(Q.hp), Math.round(Q.ep), activeW(Q)]);
+  }
+  for (const q of r.zombies) {
+    if (!spectator && (Math.abs(q.x - P.x) > 72 || Math.abs(q.y - P.y) > 52)) continue;
+    z.push([q.i, r1(q.x), r1(q.y), r2(q.a), Math.round(q.hp)]);
+  }
+  return { t: "snap", p, z };
+}
+function startRoomLoops() {
+  const ids = [];
+  ids.push(setInterval(() => {
+  const now = Date.now(), dt = 0.066;
+  for (const r of rooms.values()) {
+    if (!r.players.size) continue;
+    r.tick++;
+    if (r.hasBots) stepBots(r, dt, now);
+    stepZombies(r, dt, now);
+    const plist = [...r.players];
+    for (const P of plist) {
+      if (!P.ws || P.bot) continue;
+      const spec = P.out || !P.al;
+      sendP(P, snapFor(r, P, spec, plist));
+    }
+  }
+}, 66));
+  ids.push(setInterval(() => { const now = Date.now(); for (const r of [...rooms.values()]) stepRoomSecond(r, now); }, 1000));
+  return ids;
+}
+
+// ======================= BOTS (modo offline) =======================
+const BOT_NAMES = ["Rafa", "Bia", "Tião", "Jão", "Lu", "Cadu", "Nanda", "Zeca", "Mari", "Dudu", "Gabi", "Beto"];
+function botLoadout(B) { B.g = 1; B.m = -1; B.act = 0; }
+function addBots(r, n) {
+  r.hasBots = true;
+  for (let i = 0; i < n; i++) {
+    const B = { bot: true, ws: null, acc: { id: "bot" + (nidSeq + 1), name: BOT_NAMES[i % BOT_NAMES.length], ci: -1 }, room: r, nid: ++nidSeq,
+      shots: [], zh: [], lastMel: 0, lastKill: 0, offAt: 0, inv: 0, fireAt: 0, wa: Math.random() * 6.28, wt: 0, pts: 0, mk: 0, zk: 0, skill: 0.55 + Math.random() * 0.3 };
+    B.ci = freeCi(r); B.team = "bot" + B.nid;
+    B.hp = SH.MAXHP; B.ep = 0; B.al = 1; B.out = false; resetLoadout(B); botLoadout(B);
+    const sp = pickSpawn(r, B); B.x = sp[0]; B.y = sp[1]; B.a = Math.random() * 6.28;
+    r.players.add(B);
+  }
+}
+function hitBot(r, B, dmg, killer) {
+  if (!B.al || B.out) return;
+  if (B.ep > 0) { const a = Math.min(B.ep, dmg * 0.5); B.ep -= a; dmg -= a; }
+  B.hp -= dmg;
+  if (B.hp <= 0) eliminate(r, B, killer);
+}
+function losClear(x0, y0, x1, y1) {
+  const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 1.2);
+  for (let i = 1; i < n; i++) { const t = i / n; if (SH.pointHit(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) return false; }
+  return true;
+}
+function botRange(w) { const W1 = WN[w]; return Math.min(46, W1.spd * W1.life * 0.9); }
+function stepBots(r, dt, now) {
+  const bots = []; for (const Q of r.players) if (Q.bot && Q.al && !Q.out) bots.push(Q);
+  if (!bots.length) return;
+  const pvp = isPvp(r) && r.ph === "play";
+  if (!pvp && isPvp(r)) return;
+  const all = []; for (const Q of r.players) if (Q.al && !Q.out) all.push(Q);
+  for (const B of bots) {
+    // alvo: inimigo mais próximo com linha de visão, senão caça o humano mais próximo
+    let tgt = null, bd = 1e9, hunt = null, hd = 1e9;
+    for (const Q of all) {
+      if (Q === B || Q.team === B.team) continue;
+      const d = Math.hypot(Q.x - B.x, Q.y - B.y);
+      if (!Q.bot && d < hd) { hd = d; hunt = Q; }
+      if (d < bd && d < 42 && losClear(B.x, B.y, Q.x, Q.y)) { bd = d; tgt = Q; }
+    }
+    let zt = null, zd = 1e9;
+    for (const z of r.zombies) { const d = Math.hypot(z.x - B.x, z.y - B.y); if (d < zd && d < 16 && losClear(B.x, B.y, z.x, z.y)) { zd = d; zt = z; } }
+    let ang = B.wa, sp = 0, aim = null;
+    const rng = botRange(B.g);
+    if (tgt && (!zt || bd < zd + 4)) {
+      aim = [tgt.x, tgt.y]; const d = bd;
+      ang = Math.atan2(tgt.y - B.y, tgt.x - B.x);
+      if (d > rng * 0.65) sp = 6.2;
+      else if (d < 7) { sp = 5; ang += Math.PI; }
+      else { sp = 4.5; ang += (Math.sin(now / 700 + B.nid) > 0 ? 1.4 : -1.4); }
+    } else if (zt) {
+      aim = [zt.x, zt.y]; const d = zd;
+      ang = Math.atan2(zt.y - B.y, zt.x - B.x);
+      if (d < 6) { sp = 6; ang += Math.PI; } else sp = 0;
+    } else if (hunt) {
+      ang = Math.atan2(hunt.y - B.y, hunt.x - B.x); sp = 6.4;
+    } else {
+      B.wt -= dt; if (B.wt <= 0) { B.wt = 1.5 + Math.random() * 2; B.wa = Math.random() * 6.28; }
+      ang = B.wa; sp = 4;
+    }
+    // movimento com desvio de obstáculos
+    if (sp > 0) {
+      const offs = [0, 0.7, -0.7, 1.4, -1.4, 2.2];
+      let moved = false;
+      for (const off of offs) {
+        const a2 = ang + off, nx = B.x + Math.cos(a2) * sp * dt, ny = B.y + Math.sin(a2) * sp * dt;
+        if (!SH.circleHit(nx, ny, SH.PR)) { B.x = nx; B.y = ny; moved = true; break; }
+        if (!SH.circleHit(nx, B.y, SH.PR)) { B.x = nx; moved = true; break; }
+        if (!SH.circleHit(B.x, ny, SH.PR)) { B.y = ny; moved = true; break; }
+      }
+      if (!moved) B.wt = 0;
+    }
+    if (aim) {
+      const da = Math.atan2(aim[1] - B.y, aim[0] - B.x);
+      let diff = Math.atan2(Math.sin(da - B.a), Math.cos(da - B.a));
+      B.a += diff * Math.min(1, dt * 9);
+      // atirar
+      const W1 = WN[B.g], gap = (1000 / W1.rate) * (1.5 + (1 - B.skill) * 2);
+      if (now >= B.fireAt && Math.abs(diff) < 0.35) {
+        B.fireAt = now + gap;
+        const err = (Math.random() - 0.5) * (0.16 + (1 - B.skill) * 0.28);
+        const sa = B.a + err;
+        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa) });
+        for (const Q of r.players) if (Q !== B && !Q.bot && Math.abs(Q.x - B.x) < 90 && Math.abs(Q.y - B.y) < 70) sendP(Q, msg);
+        // bots contra bots e zumbis: acerto por varredura (contra o humano, o cliente decide com a própria bala)
+        const dx = Math.cos(sa), dy = Math.sin(sa), reach = W1.spd * W1.life;
+        let best = null, bt = reach;
+        const consider = (o, isZ) => {
+          const rx = o.x - B.x, ry = o.y - B.y, t = rx * dx + ry * dy;
+          if (t < 0 || t > bt) return;
+          if (Math.abs(rx * dy - ry * dx) > (isZ ? ZR : SH.PR) + 0.25) return;
+          if (!losClear(B.x, B.y, o.x, o.y)) return;
+          bt = t; best = [o, isZ];
+        };
+        for (const Q of all) if (Q !== B && Q.bot && Q.team !== B.team) consider(Q, false);
+        for (const z of r.zombies) consider(z, true);
+        if (best) {
+          const dmg = W1.dmg * (W1.pel || 1) * 0.6;
+          if (best[1]) { best[0].hp -= dmg; if (best[0].hp <= 0) killZombie(r, best[0], B); }
+          else hitBot(r, best[0], dmg, B);
+        }
+      }
+    }
+    // pegar item próximo (arma melhor, curativo)
+    if (r.tick % 8 === (B.nid % 8)) {
+      for (let i = 0; i < r.pickups.length; i++) {
+        const p = r.pickups[i];
+        if (Math.hypot(p.x - B.x, p.y - B.y) > 2.2) continue;
+        if (p.ty === "w") {
+          const W1 = WN[p.w];
+          if (W1.k !== "g" || SH.PROG.indexOf(p.w) <= SH.PROG.indexOf(B.g) && p.w !== 3 && p.w !== 8) continue;
+          if (p.w === B.g) continue;
+          B.g = p.w; r.pickups.splice(i, 1);
+        } else if (p.ty === "b" && B.hp < SH.MAXHP * 0.8) { B.hp = Math.min(SH.MAXHP, B.hp + 60); r.pickups.splice(i, 1); }
+        else if (p.ty === "m" && B.hp < SH.MAXHP * 0.6) { B.hp = SH.MAXHP; r.pickups.splice(i, 1); }
+        else continue;
+        if (p.amb) r.respawns.push({ at: now + 25000, ty: p.amb });
+        bcastPk(r);
+        break;
+      }
+    }
+    B.x = Math.max(1, Math.min(SH.W - 1, B.x)); B.y = Math.max(1, Math.min(SH.H - 1, B.y));
+  }
+}
+  var P0 = null, R0 = null, ids = [], outAt = 0;
+  function stop() {
+    ids.forEach(clearInterval); ids = [];
+    if (P0) P0.ws = null;
+    rooms.clear(); P0 = null; R0 = null;
+  }
+  function start(name, ci, onMsg, nBots) {
+    stop();
+    R0 = makeRoom("g", "L"); R0.cdMs = 4000; R0.endMs = 1e12;
+    P0 = { ws: { readyState: 1, send: function (s) { onMsg(JSON.parse(s)); } }, acc: { id: "local", name: name, ci: ci, fr: [] }, offAt: 0 };
+    addBots(R0, nBots || 7);
+    ids = startRoomLoops();
+    ids.push(setInterval(function () {
+      if (!R0 || !P0) return;
+      var now = Date.now();
+      if (P0.out && R0.ph === "play") {
+        if (!outAt) outAt = now;
+        if (now - outAt > 7000) {
+          var best = null; R0.players.forEach(function (Q) { if (!Q.out && Q.bot && (!best || Q.mk > best.mk)) best = Q; });
+          outAt = 0; endMatch(R0, best ? best.team : "");
+        }
+      } else outAt = 0;
+    }, 1000));
+    enterRoom(P0, R0);
+  }
+  function send(m) {
+    if (!P0 || !R0) return;
+    if (m.t === "leave") { var p = P0; leaveRoom(p, true); stop(); return; }
+    if (m.t === "play" || !P0.room) return;
+    inRoomMsg(P0, m);
+  }
+  return { start: start, stop: stop, send: send, room: function () { return R0; }, me: function () { return P0; } };
+})();
+
+  /* ============ Decais: grafites, rótulos, manchas e luz do sol (texturas desenhadas na hora, sem arquivos) ============ */
+  var DEC = [], ATLAS = null, AC = 8, ACELL = 128;
+  var seedv = 20261017;
+  function rnd() { seedv |= 0; seedv = seedv + 0x6D2B79F5 | 0; var t = Math.imul(seedv ^ seedv >>> 15, 1 | seedv); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+  function makeAtlas() {
+    var cv = document.createElement("canvas"); cv.width = AC * ACELL; cv.height = 4 * ACELL;
+    var x = cv.getContext("2d"), C = ACELL;
+    function cell(id, fn) { x.save(); x.translate((id % AC) * C, Math.floor(id / AC) * C); x.beginPath(); x.rect(0, 0, C, C); x.clip(); fn(); x.restore(); }
+    var FONT = "'Impact','Arial Black','Helvetica Neue',Arial,sans-serif";
+    function tag(txt, fill, stroke, size, rot, drips) {
+      x.save(); x.translate(C / 2, C / 2); x.rotate(rot || 0);
+      x.font = "900 " + (size || 62) + "px " + FONT; x.textAlign = "center"; x.textBaseline = "middle"; x.lineJoin = "round";
+      var w = x.measureText(txt).width, k = Math.min(1, (C - 18) / w); x.scale(k, 1);
+      x.lineWidth = 15; x.strokeStyle = "rgba(15,12,20,0.95)"; x.strokeText(txt, 3, 4);
+      x.lineWidth = 9; x.strokeStyle = stroke; x.strokeText(txt, 0, 0);
+      var g = x.createLinearGradient(0, -30, 0, 30); g.addColorStop(0, fill[0]); g.addColorStop(1, fill[1]);
+      x.fillStyle = g; x.fillText(txt, 0, 0);
+      x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,0.55)"; x.strokeText(txt, -1, -2);
+      if (drips) { x.fillStyle = stroke; for (var i = 0; i < 6; i++) { var dx = -w / 2 + 8 + rnd() * (w - 16), dl = 8 + rnd() * 22; x.fillRect(dx, 18, 3.2, dl); x.beginPath(); x.arc(dx + 1.6, 18 + dl, 2.6, 0, 6.3); x.fill(); } }
+      x.restore();
+    }
+    cell(0, function () { tag("STYLE", ["#ff7ad9", "#c43cff"], "#35e6ff", 60, -0.1, true); });
+    cell(1, function () { tag("$$$", ["#baff5a", "#2fbf4f"], "#ffd23a", 74, 0.08, true); });
+    cell(2, function () {
+      x.translate(C / 2, C / 2); x.lineWidth = 12; x.strokeStyle = "#1a1420"; x.fillStyle = "#ffd62a";
+      x.beginPath(); x.arc(0, 0, 46, 0, 6.3); x.fill(); x.stroke();
+      x.fillStyle = "#1a1420"; x.beginPath(); x.arc(-16, -12, 7, 0, 6.3); x.arc(16, -12, 7, 0, 6.3); x.fill();
+      x.lineWidth = 7; x.lineCap = "round"; x.beginPath(); x.arc(0, 6, 26, 0.15, Math.PI - 0.15); x.stroke();
+    });
+    cell(3, function () { tag("GALPÃO", ["#ffb347", "#ff5a1f"], "#fff2c9", 50, 0.06, true); });
+    cell(4, function () {
+      x.translate(C / 2, C / 2 + 6); x.lineJoin = "round"; x.lineWidth = 13; x.strokeStyle = "#16121c"; x.fillStyle = "#ffd23a";
+      x.beginPath(); x.moveTo(-46, 30); x.lineTo(-52, -26); x.lineTo(-24, 0); x.lineTo(0, -40); x.lineTo(24, 0); x.lineTo(52, -26); x.lineTo(46, 30); x.closePath(); x.stroke(); x.fill();
+      x.fillStyle = "#ff3d6e"; x.beginPath(); x.arc(0, 8, 8, 0, 6.3); x.fill();
+    });
+    cell(5, function () {
+      x.fillStyle = "#f2c200"; x.fillRect(0, 0, C, C); x.fillStyle = "#17171a";
+      for (var i = -C; i < C * 2; i += 32) { x.beginPath(); x.moveTo(i, C); x.lineTo(i + 16, C); x.lineTo(i + 16 + C, 0); x.lineTo(i + C, 0); x.closePath(); x.fill(); }
+      x.strokeStyle = "rgba(0,0,0,0.35)"; x.lineWidth = 4; x.strokeRect(2, 2, C - 4, C - 4);
+    });
+    cell(6, function () {
+      x.fillStyle = "#c79a62"; x.fillRect(0, 0, C, C); x.fillStyle = "rgba(255,255,255,0.35)"; x.fillRect(0, C / 2 - 9, C, 18);
+      x.fillStyle = "#f3f3ee"; x.fillRect(22, 24, 84, 62); x.fillStyle = "#111";
+      for (var i = 0; i < 26; i++) x.fillRect(28 + i * 3, 58, 1 + (i * 7 % 3), 22);
+      x.fillStyle = "#d02020"; x.font = "900 17px " + FONT; x.textAlign = "left"; x.fillText("FRÁGIL", 28, 46);
+      x.fillStyle = "#222"; x.font = "700 11px Arial"; x.fillText("LOTE 0" + 7, 28, 33);
+      x.fillStyle = "#d02020"; x.fillRect(86, 28, 14, 14);
+    });
+    cell(7, function () {
+      x.fillStyle = "rgba(20,22,26,0.0)"; x.font = "900 70px " + FONT; x.textAlign = "center"; x.textBaseline = "middle";
+      x.lineWidth = 8; x.strokeStyle = "rgba(0,0,0,0.5)"; x.strokeText("A-12", C / 2, C / 2 + 3);
+      x.fillStyle = "#f2c200"; x.fillText("A-12", C / 2, C / 2);
+    });
+    cell(8, function () {
+      x.translate(C / 2, C / 2 + 4); x.lineJoin = "round"; x.lineWidth = 8; x.strokeStyle = "#17171a"; x.fillStyle = "#f2c200";
+      x.beginPath(); x.moveTo(0, -50); x.lineTo(54, 42); x.lineTo(-54, 42); x.closePath(); x.fill(); x.stroke();
+      x.fillStyle = "#17171a"; x.fillRect(-5, -16, 10, 34); x.beginPath(); x.arc(0, 28, 6, 0, 6.3); x.fill();
+    });
+    cell(9, function () {
+      for (var i = 0; i < 9; i++) { var px = 64 + (rnd() - 0.5) * 50, py = 64 + (rnd() - 0.5) * 50, r = 14 + rnd() * 26, g = x.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, "rgba(10,8,6,0.42)"); g.addColorStop(1, "rgba(10,8,6,0)"); x.fillStyle = g; x.beginPath(); x.arc(px, py, r, 0, 6.3); x.fill(); }
+    });
+    cell(10, function () {
+      x.lineCap = "round";
+      for (var k = 0; k < 2; k++) { x.strokeStyle = "rgba(12,10,8,0.32)"; x.lineWidth = 10; x.beginPath(); x.moveTo(8, 36 + k * 56); x.bezierCurveTo(40, 20 + k * 56, 80, 56 + k * 56, 120, 32 + k * 56); x.stroke();
+        x.strokeStyle = "rgba(12,10,8,0.18)"; x.lineWidth = 3; for (var j = 0; j < 14; j++) { x.beginPath(); x.moveTo(10 + j * 8, 30 + k * 56 + (j % 2) * 8); x.lineTo(16 + j * 8, 34 + k * 56 + (j % 2) * 8); x.stroke(); } }
+    });
+    cell(11, function () {
+      var g1 = x.createLinearGradient(0, 0, C, 0); g1.addColorStop(0, "rgba(255,255,255,0)"); g1.addColorStop(0.28, "rgba(255,255,255,1)"); g1.addColorStop(0.72, "rgba(255,255,255,1)"); g1.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = g1; x.fillRect(0, 0, C, C);
+      x.globalCompositeOperation = "destination-in";
+      var g2 = x.createLinearGradient(0, 0, 0, C); g2.addColorStop(0, "rgba(0,0,0,0)"); g2.addColorStop(0.25, "rgba(0,0,0,1)"); g2.addColorStop(0.75, "rgba(0,0,0,1)"); g2.addColorStop(1, "rgba(0,0,0,0)");
+      x.fillStyle = g2; x.fillRect(0, 0, C, C); x.globalCompositeOperation = "source-over";
+    });
+    cell(12, function () { var g = x.createLinearGradient(0, 0, 0, C); g.addColorStop(0, "rgba(10,8,6,0)"); g.addColorStop(1, "rgba(10,8,6,0.8)"); x.fillStyle = g; x.fillRect(0, 0, C, C);
+      for (var i = 0; i < 40; i++) { x.fillStyle = "rgba(10,8,6," + (0.05 + rnd() * 0.1) + ")"; x.fillRect(rnd() * C, C * (0.3 + rnd() * 0.5), 1 + rnd() * 2, 10 + rnd() * 40); } });
+    cell(13, function () {
+      x.strokeStyle = "rgba(20,18,16,0.55)"; x.lineWidth = 2; x.lineCap = "round";
+      for (var k = 0; k < 3; k++) { var px = 10 + rnd() * 30, py = 20 + rnd() * 90; x.beginPath(); x.moveTo(px, py); for (var j = 0; j < 7; j++) { px += 10 + rnd() * 10; py += (rnd() - 0.5) * 24; x.lineTo(px, py); } x.stroke(); }
+    });
+    cell(14, function () {
+      x.fillStyle = "#f4f1e6"; x.beginPath(); x.moveTo(C / 2, 6); x.lineTo(C - 18, 56); x.lineTo(C / 2 + 14, 56); x.lineTo(C / 2 + 14, C - 6); x.lineTo(C / 2 - 14, C - 6); x.lineTo(C / 2 - 14, 56); x.lineTo(18, 56); x.closePath(); x.fill();
+    });
+    cell(15, function () { var g = x.createRadialGradient(64, 64, 0, 64, 64, 62); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, C, C); });
+    cell(16, function () {
+      x.fillStyle = "rgba(255,255,255,0.0)"; x.font = "900 40px " + FONT; x.textAlign = "center"; x.textBaseline = "middle";
+      x.lineWidth = 6; x.strokeStyle = "rgba(0,0,0,0.45)"; x.strokeText("ARENA", C / 2, 46); x.fillStyle = "#f5f2e8"; x.fillText("ARENA", C / 2, 44);
+      x.font = "700 20px Arial"; x.fillStyle = "#f5f2e8"; x.fillText("LOGÍSTICA", C / 2, 84);
+      x.fillRect(14, 62, C - 28, 3);
+    });
+    cell(17, function () { for (var i = 0; i < 26; i++) { var px = rnd() * C, h = 30 + rnd() * 90, g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "rgba(110,52,18," + (0.35 + rnd() * 0.3) + ")"); g.addColorStop(1, "rgba(110,52,18,0)"); x.fillStyle = g; x.fillRect(px, 0, 2 + rnd() * 4, h); } });
+    cell(18, function () {
+      x.fillStyle = "#efe9d6"; x.fillRect(16, 10, 96, 108); x.fillStyle = "#b02a2a"; x.fillRect(16, 10, 96, 22);
+      x.fillStyle = "#222"; x.font = "900 17px " + FONT; x.textAlign = "center"; x.fillText("AVISO", 64, 28); x.fillStyle = "#555";
+      for (var i = 0; i < 7; i++) x.fillRect(26, 46 + i * 11, 76 - (i % 3) * 14, 4);
+    });
+    cell(19, function () { tag("LOUCO", ["#8dff8a", "#13b36b"], "#fff", 56, -0.06, true); });
+    cell(20, function () { tag("1UP", ["#7bd2ff", "#2a6bff"], "#ffe14d", 64, 0.1, true); });
+    cell(21, function () { x.fillStyle = "#ffffff"; x.fillRect(0, 0, C, C); });
+    return cv;
+  }
+  var DC = {};
+  function duv(id) { var cx = (id % AC) * ACELL, cy = Math.floor(id / AC) * ACELL, e = 2.5, W0 = AC * ACELL, H0 = 4 * ACELL; return [(cx + e) / W0, (cy + e) / H0, (cx + ACELL - e) / W0, (cy + ACELL - e) / H0]; }
+  function dpush(p, uvs, c, a, order) {
+    var o = order || [0, 1, 2, 0, 2, 3];
+    for (var i = 0; i < 6; i++) { var k = o[i]; DEC.push(p[k * 3], p[k * 3 + 1], p[k * 3 + 2], uvs[k * 2], uvs[k * 2 + 1], c[0], c[1], c[2], a); }
+  }
+  // no chão: centro, largura (x), altura (z), rotação, cor, opacidade
+  function decalFloor(id, cx, cz, w, h, rot, c, a, y) {
+    var u = duv(id), ca = Math.cos(rot || 0), sa = Math.sin(rot || 0), hw = w / 2, hh = h / 2, yy = y || 0.1;
+    var X = [-hw, hw, hw, -hw], Z = [hh, hh, -hh, -hh], p = [], i;
+    for (i = 0; i < 4; i++) p.push(cx + X[i] * ca - Z[i] * sa, yy, cz + X[i] * sa + Z[i] * ca);
+    // v=1 (base da imagem) fica para o lado +z (baixo na tela)
+    dpush(p, [u[0], u[3], u[2], u[3], u[2], u[1], u[0], u[1]], c || [1, 1, 1], a == null ? 1 : a);
+  }
+  // numa parede virada para o sul (+z): centro x, centro y (altura), largura, altura, z da face
+  function decalS(id, cx, cy, w, h, zf, c, a, flip) {
+    var u = duv(id), hw = w / 2, hh = h / 2, z = zf + 0.04;
+    var p = [cx - hw, cy - hh, z, cx + hw, cy - hh, z, cx + hw, cy + hh, z, cx - hw, cy + hh, z];
+    var uu = flip ? [u[2], u[3], u[0], u[3], u[0], u[1], u[2], u[1]] : [u[0], u[3], u[2], u[3], u[2], u[1], u[0], u[1]];
+    dpush(p, uu, c || [1, 1, 1], a == null ? 1 : a);
+  }
+  // numa face virada para o oeste (-x) ou leste (+x): visível de lado
+  function decalX(id, xf, cz, cy, w, h, c, a) {
+    var u = duv(id), hw = w / 2, hh = h / 2, x0 = xf + 0.04 * (xf >= 0 ? 1 : 1);
+    var p = [x0, cy - hh, cz + hw, x0, cy - hh, cz - hw, x0, cy + hh, cz - hw, x0, cy + hh, cz + hw];
+    dpush(p, [u[0], u[3], u[2], u[3], u[2], u[1], u[0], u[1]], c || [1, 1, 1], a == null ? 1 : a);
+  }
+
   /* ============ Base: constantes, ajudas e mapa 3D ============ */
   var W = SH.W, H = SH.H, PR = SH.PR, SPEED = SH.SPEED, MAXHP = SH.MAXHP, MAXEP = SH.MAXEP, WEAPONS = SH.WEAPONS, NG = SH.NG;
   var GY = 0.07;
@@ -471,7 +1247,9 @@ var SH = (function () {
 
   /* ---- geometria estática (já iluminada), dividida em blocos para não desenhar o que está fora da tela ---- */
   var LX = -0.45, LY = 0.85, LZ = 0.35, LL = Math.hypot(LX, LY, LZ); LX /= LL; LY /= LL; LZ /= LL;
-  function lightOf(nx, ny, nz) { var d = nx * LX + ny * LY + nz * LZ; return 0.5 + 0.6 * (d > 0 ? d : 0); }
+  var LRGB = [1, 1, 1];
+  // sol quente de um lado, sombra azulada do outro
+  function lightRGB(nx, ny, nz) { var d = nx * LX + ny * LY + nz * LZ; if (d < 0) d = 0; LRGB[0] = 0.46 + 0.68 * d; LRGB[1] = 0.50 + 0.58 * d; LRGB[2] = 0.62 + 0.24 * d; return LRGB; }
   var CHUNK = 32;
   var SETS = { map: new Map(), lobby: new Map() }, curSet = SETS.map;
   function chunkArr(x, z) {
@@ -480,11 +1258,11 @@ var SH = (function () {
     if (!o) { o = { cx: Math.floor(x / CHUNK), cz: Math.floor(z / CHUNK), a: [], vbo: null, n: 0 }; curSet.set(key, o); }
     return o.a;
   }
-  function sv(a, x, y, z, c, l) { a.push(x, y, z, c[0] * l, c[1] * l, c[2] * l); }
+  function sv(a, x, y, z, r, g, b) { a.push(x, y, z, r, g, b); }
   function squad(a, p, n, c) {
-    var l = lightOf(n[0], n[1], n[2]);
-    sv(a, p[0], p[1], p[2], c, l); sv(a, p[3], p[4], p[5], c, l); sv(a, p[6], p[7], p[8], c, l);
-    sv(a, p[0], p[1], p[2], c, l); sv(a, p[6], p[7], p[8], c, l); sv(a, p[9], p[10], p[11], c, l);
+    var l = lightRGB(n[0], n[1], n[2]), r = c[0] * l[0], g = c[1] * l[1], b = c[2] * l[2];
+    sv(a, p[0], p[1], p[2], r, g, b); sv(a, p[3], p[4], p[5], r, g, b); sv(a, p[6], p[7], p[8], r, g, b);
+    sv(a, p[0], p[1], p[2], r, g, b); sv(a, p[6], p[7], p[8], r, g, b); sv(a, p[9], p[10], p[11], r, g, b);
   }
   function sBox1(cx, cy, cz, sx, sy, sz, c) {
     var a = chunkArr(cx, cz);
@@ -508,6 +1286,10 @@ var SH = (function () {
   function visWall(s) {
     rBox(s.x, s.y, s.w, s.h, 0, s.hg, [0.42, 0.44, 0.48]);
     rBox(s.x - 0.1, s.y - 0.1, s.w + 0.2, s.h + 0.2, s.hg, s.hg + 0.25, [0.62, 0.64, 0.68]);
+    if (s.w > s.h && s.w > 6) {
+      decalS(12, s.x + s.w / 2, 1.0, s.w, 2.0, s.y + s.h, [1, 1, 1], 0.8);
+      for (var g = s.x + 3; g < s.x + s.w - 3; g += 6.5) rBox(g - 0.2, s.y + s.h, 0.4, 0.14, 0, s.hg, [0.34, 0.36, 0.4]);
+    }
   }
   function visFence(s) {
     var C = [0.58, 0.60, 0.64], D = [0.34, 0.36, 0.40], L = s.h > s.w, g;
@@ -516,21 +1298,45 @@ var SH = (function () {
     if (L) for (g = s.y; g < s.y + s.h; g += 4) rBox(s.x - 0.15, g, s.w + 0.3, 0.4, 0, 2.5, D);
     else for (g = s.x; g < s.x + s.w; g += 4) rBox(g, s.y - 0.15, 0.4, s.h + 0.3, 0, 2.5, D);
   }
+  var BOXC = [[0.70, 0.52, 0.31], [0.62, 0.45, 0.26], [0.78, 0.60, 0.38], [0.55, 0.40, 0.24], [0.84, 0.82, 0.76], [0.35, 0.50, 0.66], [0.72, 0.30, 0.24]];
   function visShelf(s) {
-    var BL = [0.17, 0.34, 0.60], BL2 = [0.12, 0.25, 0.46];
-    rBox(s.x, s.y, s.w, s.h, 0, 3.4, BL);
-    rBox(s.x, s.y, 0.35, s.h, 3.4, 3.75, BL2);
-    rBox(s.x + s.w - 0.35, s.y, 0.35, s.h, 3.4, 3.75, BL2);
-    if (s.w > s.h) { rBox(s.x, s.y, s.w, 0.35, 3.4, 3.75, BL2); rBox(s.x, s.y + s.h - 0.35, s.w, 0.35, 3.4, 3.75, BL2); }
-    var n = Math.max(2, Math.floor(Math.max(s.h, s.w) / 2.8)), step = (Math.max(s.h, s.w) - 0.6) / n, i;
+    var UP = [0.95, 0.52, 0.10], BM = [0.16, 0.34, 0.62], IN = [0.12, 0.13, 0.16];
+    var vert = s.h >= s.w, len = vert ? s.h : s.w, n = Math.max(2, Math.round(len / 2.4)), step = len / n, i, lv, side;
+    rBox(s.x, s.y, s.w, s.h, 0, 3.3, IN);                                   // fundo escuro do vão
+    var lvH = [0.1, 1.15, 2.2];
     for (i = 0; i < n; i++) {
-      if (s.h >= s.w) rBox(s.x + 0.45, s.y + 0.3 + i * step, s.w - 0.9, step - 0.3, 3.4, 4.1 + (i % 3) * 0.15, CRATEC[i % 3]);
-      else rBox(s.x + 0.3 + i * step, s.y + 0.45, step - 0.3, s.h - 0.9, 3.4, 4.1 + (i % 3) * 0.15, CRATEC[i % 3]);
+      for (lv = 0; lv < 3; lv++) {
+        if (rnd() < 0.12) continue;
+        var bw = step - 0.35 - rnd() * 0.5, bh = 0.7 + rnd() * 0.3, c = BOXC[Math.floor(rnd() * BOXC.length)];
+        var off = (step - bw) / 2;
+        if (vert) { rBox(s.x - 0.04, s.y + i * step + off, s.w + 0.08, bw, lvH[lv] + 0.12, lvH[lv] + 0.12 + bh, c); }
+        else { rBox(s.x + i * step + off, s.y - 0.04, bw, s.h + 0.08, lvH[lv] + 0.12, lvH[lv] + 0.12 + bh, c); }
+      }
     }
-    if (s.h >= s.w) { sBox(s.x + s.w / 2, 1.1, s.y + s.h + 0.06, s.w, 0.28, 0.12, [0.95, 0.55, 0.12]); sBox(s.x + s.w / 2, 2.4, s.y + s.h + 0.06, s.w, 0.28, 0.12, [0.95, 0.55, 0.12]); }
+    // topo carregado
+    for (i = 0; i < n; i++) {
+      var tw = step - 0.3 - rnd() * 0.4, th = 0.5 + rnd() * 0.8, c2 = BOXC[Math.floor(rnd() * BOXC.length)];
+      if (vert) rBox(s.x + 0.15, s.y + i * step + (step - tw) / 2, s.w - 0.3, tw, 3.3, 3.3 + th, c2);
+      else rBox(s.x + i * step + (step - tw) / 2, s.y + 0.15, tw, s.h - 0.3, 3.3, 3.3 + th, c2);
+    }
+    // longarinas laranja e colunas azuis
+    for (lv = 0; lv < 4; lv++) {
+      var yy = 1.08 + lv * 1.1 - 0.0; if (lv === 3) yy = 3.3;
+      if (vert) { rBox(s.x - 0.1, s.y, 0.16, s.h, yy - 0.09, yy + 0.09, UP); rBox(s.x + s.w - 0.06, s.y, 0.16, s.h, yy - 0.09, yy + 0.09, UP); }
+      else { rBox(s.x, s.y - 0.1, s.w, 0.16, yy - 0.09, yy + 0.09, UP); rBox(s.x, s.y + s.h - 0.06, s.w, 0.16, yy - 0.09, yy + 0.09, UP); }
+    }
+    for (i = 0; i <= n; i++) {
+      if (vert) { rBox(s.x - 0.12, s.y + i * step - 0.12, 0.3, 0.24, 0, 3.4, BM); rBox(s.x + s.w - 0.18, s.y + i * step - 0.12, 0.3, 0.24, 0, 3.4, BM); }
+      else { rBox(s.x + i * step - 0.12, s.y - 0.12, 0.24, 0.3, 0, 3.4, BM); rBox(s.x + i * step - 0.12, s.y + s.h - 0.18, 0.24, 0.3, 0, 3.4, BM); }
+    }
+    // etiquetas e avisos
+    if (vert) { decalS(6, s.x + s.w / 2, 1.7, 1.5, 1.5, s.y + s.h, [1, 1, 1], 0.95); decalS(8, s.x + s.w / 2, 2.8, 1.0, 1.0, s.y + s.h, [1, 1, 1], 0.9); }
+    else for (i = 0; i < n; i += 3) decalS(6, s.x + i * step + step / 2, 0.75, 1.2, 1.2, s.y + s.h + 0.1, [1, 1, 1], 0.95);
   }
   function visContainer(s) {
     var c = s.c, d = mulc(c, 0.78), g;
+    if (s.w > s.h) { decalS(16, s.x + s.w * 0.5, s.hg * 0.55, Math.min(6, s.w * 0.45), Math.min(6, s.w * 0.45), s.y + s.h, [1, 1, 1], 0.9); decalS(17, s.x + s.w * 0.75, s.hg * 0.5, s.w * 0.4, s.hg, s.y + s.h, [1, 1, 1], 0.5); decalS(12, s.x + s.w / 2, s.hg * 0.5, s.w, s.hg, s.y + s.h, [1, 1, 1], 0.45); }
+    else { decalS(5, s.x + s.w / 2, 0.45, s.w - 0.8, 0.8, s.y + s.h, [1, 1, 1], 0.9); }
     rBox(s.x, s.y, s.w, s.h, 0, s.hg, c);
     if (s.w > s.h) {
       for (g = s.x + 1; g < s.x + s.w - 0.5; g += 1.3) sBox(g, s.hg / 2, s.y + s.h + 0.06, 0.28, s.hg - 0.5, 0.12, d);
@@ -652,10 +1458,34 @@ var SH = (function () {
     rBox(s.x, s.y, s.w, s.h, 0, s.hg, [0.82, 0.82, 0.8]);
     for (var g = s.x; g < s.x + s.w - 0.5; g += 1.5) rBox(g, s.y - 0.03, 0.7, s.h + 0.06, 0.3, s.hg - 0.2, [0.85, 0.2, 0.2]);
   }
-  var VIS = { wall: visWall, fence: visFence, shelf: visShelf, container: visContainer, van: visVan, crate: visCrate, booth: visBooth,
+  var BARC = [[0.80, 0.18, 0.15], [0.18, 0.42, 0.75], [0.90, 0.60, 0.12], [0.2, 0.55, 0.3]];
+  function visBarrel(s) {
+    var c = BARC[Math.floor(s.x * 7 + s.y * 3) % 4], cx = s.x + s.w / 2, cz = s.y + s.h / 2, d = s.w;
+    rBox(s.x + 0.12, s.y + 0.12, d - 0.24, d - 0.24, 0, s.hg, c);
+    rBox(s.x, s.y + 0.3, d, d - 0.6, 0.15, s.hg - 0.15, c);
+    rBox(s.x + 0.3, s.y, d - 0.6, d, 0.15, s.hg - 0.15, c);
+    rBox(s.x - 0.02, s.y + 0.28, d + 0.04, d - 0.56, 0.5, 0.64, mulc(c, 0.6)); rBox(s.x + 0.28, s.y - 0.02, d - 0.56, d + 0.04, 0.5, 0.64, mulc(c, 0.6));
+    rBox(s.x - 0.02, s.y + 0.28, d + 0.04, d - 0.56, s.hg - 0.64, s.hg - 0.5, mulc(c, 0.6)); rBox(s.x + 0.28, s.y - 0.02, d - 0.56, d + 0.04, s.hg - 0.64, s.hg - 0.5, mulc(c, 0.6));
+    rBox(s.x + 0.4, s.y + 0.4, d - 0.8, d - 0.8, s.hg, s.hg + 0.05, [0.12, 0.12, 0.14]);
+    decalS(8, cx, s.hg * 0.5, 0.8, 0.8, s.y + d, [1, 1, 1], 0.85);
+  }
+  function visPallet(s) {
+    var i, W2 = [0.60, 0.44, 0.26];
+    rBox(s.x, s.y, s.w, s.h, 0.0, 0.35, [0.46, 0.33, 0.19]);
+    for (i = 0; i < 3; i++) rBox(s.x, s.y + i * (s.h - 0.3) / 2, s.w, 0.3, 0.35, 0.5, W2);
+    var bw = s.w / 2 - 0.08, bh = s.h / 2 - 0.08, k = 0, lv, a, b;
+    for (lv = 0; lv < 2; lv++) for (a = 0; a < 2; a++) for (b = 0; b < 2; b++) {
+      var c = BOXC[(k++ + Math.floor(s.x)) % BOXC.length];
+      rBox(s.x + 0.04 + a * (bw + 0.08), s.y + 0.04 + b * (bh + 0.08), bw, bh, 0.5 + lv * 0.95, 0.5 + lv * 0.95 + 0.9 - (lv ? 0.15 * (a ^ b) : 0), c);
+    }
+    rBox(s.x + 0.02, s.y + 0.02, s.w - 0.04, s.h - 0.04, 2.35, 2.4, [0.9, 0.92, 0.95]);
+    decalS(6, s.x + bw / 2 + 0.04, 1.0, 1.1, 1.1, s.y + s.h, [1, 1, 1], 0.95);
+    decalS(6, s.x + s.w - bw / 2 - 0.04, 1.95, 1.1, 1.1, s.y + s.h, [1, 1, 1], 0.9);
+  }
+  var VIS = { barrel: visBarrel, pallet: visPallet, wall: visWall, fence: visFence, shelf: visShelf, container: visContainer, van: visVan, crate: visCrate, booth: visBooth,
     counter: visCounter, bench: visBench, tower: visTower, plane: visPlane, cart: visCart, tank: visTank, barrier: visBarrier };
 
-  var GROUND = [0.23, 0.25, 0.28], CONC = [0.76, 0.73, 0.66], YARD = [0.50, 0.53, 0.52], APRON = [0.42, 0.43, 0.45], RUNW = [0.17, 0.18, 0.20], TILE = [0.84, 0.82, 0.76];
+  var GROUND = [0.23, 0.25, 0.28], CONC = [0.70, 0.68, 0.63], YARD = [0.50, 0.53, 0.52], APRON = [0.42, 0.43, 0.45], RUNW = [0.17, 0.18, 0.20], TILE = [0.84, 0.82, 0.76];
   function floorAt(x, y) {
     if (x > 12 && x < 90 && y > 12 && y < 66) return CONC;
     if (x > 92 && x < 146 && y > 6 && y < 74) return YARD;
@@ -689,10 +1519,50 @@ var SH = (function () {
     for (g = 156; g < 266; g += 12) { sBox(g, GY + 0.15, 66.9, 0.5, 0.25, 0.5, [1, 0.95, 0.6]); sBox(g, GY + 0.15, 81.1, 0.5, 0.25, 0.5, [1, 0.95, 0.6]); }
     for (g = 4; g < 40; g += 7) { rBox(149, g, 2.4, 3, GY, GY + 0.05, [0.95, 0.8, 0.15]); }
     for (g = 4; g < 146; g += 7) rBox(g, 8.2, 0.01, 0.01, GY, GY, [0, 0, 0]);
+    // ladrilhos do piso do galpão com variação de tom
+    for (i = 12; i < 90; i += 10) for (g = 12; g < 66; g += 10) { var k2 = 0.95 + rnd() * 0.1; rBox(i + 0.07, g + 0.07, Math.min(10, 90 - i) - 0.14, Math.min(10, 66 - g) - 0.14, GY, GY + 0.012, mulc(CONC, k2)); }
+    // ---- decais no chão (primeiro luz do sol, depois sujeira) ----
+    var yD = 0.115;
+    for (i = 0; i < 6; i++) {
+      var bx = 21 + i * 13.2;
+      decalFloor(11, bx, 39, 5.2, 52, 0, [1.0, 0.86, 0.52], 0.42, yD);
+      decalFloor(11, bx, 39, 2.4, 52, 0, [1.0, 0.93, 0.7], 0.3, yD + 0.002);
+    }
+    for (g = 20; g < 66; g += 14) decalFloor(11, 51, g, 78, 0.9, 0, [0.05, 0.05, 0.08], 0.28, yD + 0.004);   // sombra das vigas do teto
+    decalFloor(11, 51, 13.9, 78, 3.0, 0, [0, 0, 0], 0.30, yD + 0.004); decalFloor(11, 51, 64.1, 78, 3.0, 0, [0, 0, 0], 0.30, yD + 0.004);
+    decalFloor(11, 13.9, 39, 3.0, 54, 0, [0, 0, 0], 0.28, yD + 0.004); decalFloor(11, 88.1, 39, 3.0, 54, 0, [0, 0, 0], 0.28, yD + 0.004);
+    for (i = 0; i < 16; i++) decalFloor(9, 16 + rnd() * 72, 15 + rnd() * 50, 4 + rnd() * 5, 4 + rnd() * 5, rnd() * 6, [1, 1, 1], 0.7, yD + 0.006);
+    for (i = 0; i < 10; i++) decalFloor(9, 94 + rnd() * 52, 8 + rnd() * 64, 4 + rnd() * 6, 4 + rnd() * 6, rnd() * 6, [1, 1, 1], 0.8, yD + 0.006);
+    for (i = 0; i < 4; i++) decalFloor(10, 22 + rnd() * 62, 35 + rnd() * 10, 11, 6, (rnd() - 0.5) * 0.4, [1, 1, 1], 0.4, yD + 0.008);
+    decalFloor(10, 148, 37, 12, 7, 0, [1, 1, 1], 0.4, yD + 0.008); decalFloor(10, 148, 85, 12, 7, 0, [1, 1, 1], 0.4, yD + 0.008);
+    for (i = 0; i < 12; i++) decalFloor(13, 14 + rnd() * 74, 14 + rnd() * 50, 9, 9, rnd() * 6.28, [1, 1, 1], 0.7, yD + 0.01);
+    for (i = 0; i < 8; i++) decalFloor(13, 94 + rnd() * 50, 8 + rnd() * 64, 9, 9, rnd() * 6.28, [1, 1, 1], 0.7, yD + 0.01);
+    // números de baia e setas pintadas
+    var bays = [20, 28, 36, 58, 66, 74];
+    for (i = 0; i < bays.length; i++) { decalFloor(7, bays[i] + 1.2, 34.0, 3.0, 3.0, 0, [1, 1, 1], 0.8, yD + 0.012); decalFloor(7, bays[i] + 1.2, 44.4, 3.0, 3.0, 3.14159, [1, 1, 1], 0.8, yD + 0.012); }
+    for (g = 20; g < 84; g += 12) decalFloor(14, g, 39.8, 2.4, 2.4, 1.5708, [1, 1, 1], 0.55, yD + 0.012);
+    decalFloor(5, 51.5, 12.9, 6, 1.2, 0, [1, 1, 1], 0.95, yD + 0.012); decalFloor(5, 51.5, 65.1, 6, 1.2, 0, [1, 1, 1], 0.95, yD + 0.012);
+    decalFloor(5, 13, 38, 1.2, 8, 0, [1, 1, 1], 0.95, yD + 0.012); decalFloor(5, 89, 43, 1.2, 12, 0, [1, 1, 1], 0.95, yD + 0.012);
+    for (i = 0; i < 14; i++) decalFloor(9, 160 + rnd() * 100, 4 + rnd() * 60, 5 + rnd() * 5, 5 + rnd() * 5, rnd() * 6, [1, 1, 1], 0.55, yD + 0.006);
+    // ---- grafites e avisos nas paredes ----
+    var TAGS = [0, 1, 2, 3, 4, 19, 20];
+    var wallTags = [[17, 1.7], [26, 2.0], [58, 1.8], [66.5, 2.1], [75, 1.7], [83, 2.0]];
+    for (i = 0; i < wallTags.length; i++) decalS(TAGS[(i * 3) % TAGS.length], wallTags[i][0], wallTags[i][1], 4.4, 4.4, 13.4, [1, 1, 1], 0.95);
+    decalS(8, 31, 1.9, 1.4, 1.4, 13.4, [1, 1, 1], 0.95); decalS(18, 54, 1.9, 1.5, 1.5, 13.4, [1, 1, 1], 0.95);
+    decalS(0, 20, 1.8, 4.6, 4.6, 1.6, [1, 1, 1], 0.9); decalS(1, 62, 1.9, 4.2, 4.2, 1.6, [1, 1, 1], 0.9); decalS(3, 120, 1.9, 4.4, 4.4, 1.6, [1, 1, 1], 0.9);
+    decalS(2, 224, 2.0, 3.8, 3.8, 9.4, [1, 1, 1], 0.95); decalS(19, 246, 2.0, 4.4, 4.4, 9.4, [1, 1, 1], 0.95); decalS(4, 170, 1.9, 3.8, 3.8, 9.4, [1, 1, 1], 0.95);
+    // ---- sombras no chão seguindo a direção do sol (a altura do objeto manda no comprimento) ----
     for (i = 0; i < solids.length; i++) {
       s = solids[i];
-      if (s.t !== "wall" && s.t !== "fence" && s.t !== "plane" && s.t !== "barrier") rBox(s.x, s.y - 0.9, s.w + 1.3, s.h + 0.9, GY - 0.03, GY + 0.03, mulc(floorAt(s.x + s.w / 2, s.y + s.h / 2), 0.62));
-      if (s.t === "plane" && s.p === "f") rBox(s.x - 1, s.y - 0.5, s.w + 2, s.h + 1.5, GY + 0.0, GY + 0.04, mulc(APRON, 0.7));
+      if (s.t === "wall" || s.t === "fence" || s.t === "barrier") continue;
+      if (s.t === "plane" && s.p !== "f") continue;
+      var hh = Math.min(s.hg, s.t === "tower" ? 7 : 5), dx = hh * 0.55, dz = -hh * 0.42, n = 5, st, fc = floorAt(s.x + s.w / 2, s.y + s.h / 2);
+      for (st = 0; st <= n; st++) {
+        var f1 = st / n, kk = 0.78 - 0.16 * (1 - f1);
+        rBox(s.x + dx * f1, s.y + dz * f1, s.w + 0.0, s.h, 0.1 + 0.001 * st, 0.115 + 0.001 * st, mulc(fc, 0.62 + 0.16 * f1));
+      }
+      // preenche o espaço entre os degraus
+      rBox(s.x, s.y + dz, s.w + dx, s.h - dz * 0 + 0, 0.095, 0.108, mulc(fc, 0.8));
     }
     for (i = 0; i < solids.length; i++) { s = solids[i]; var f = VIS[s.t]; if (f) f(s); }
   })();
@@ -717,7 +1587,7 @@ var SH = (function () {
   var camZoom = 1;
   var cam = { x: 0, y: 0, z: 0, fwd: [0, 0, -1], right: [1, 0, 0], up: [0, 1, 0], tanH: 0.34, aspect: 1 };
   var view = { x0: 0, x1: W, z0: 0, z1: H };       // retângulo do chão que aparece na tela
-  var gl = null, glOK = false, prog = null, uVP, dynVbo = null;
+  var gl = null, glOK = false, prog = null, uVP, dynVbo = null, dprog = null, duVP, decVbo = null, decN = 0, decTex = null;
   var lastCW = 0, lastCH = 0;
 
   function resize() {
@@ -795,6 +1665,8 @@ var SH = (function () {
   /* ============ WebGL ============ */
   var VS = "attribute vec3 aPos;attribute vec3 aCol;uniform mat4 uVP;varying vec3 vCol;void main(){gl_Position=uVP*vec4(aPos,1.0);vCol=aCol;}";
   var FS = "precision mediump float;varying vec3 vCol;void main(){gl_FragColor=vec4(vCol,1.0);}";
+  var DVS = "attribute vec3 aPos;attribute vec2 aUV;attribute vec4 aCol;uniform mat4 uVP;varying vec2 vUV;varying vec4 vCol;void main(){gl_Position=uVP*vec4(aPos,1.0);vUV=aUV;vCol=aCol;}";
+  var DFS = "precision mediump float;varying vec2 vUV;varying vec4 vCol;uniform sampler2D uTex;void main(){vec4 t=texture2D(uTex,vUV);gl_FragColor=vec4(t.rgb*vCol.rgb,t.a*vCol.a);}";
   var DCAP = 6 * 30 * 2600, dyn = new Float32Array(DCAP), di = 0;
   function compile(type, src) {
     var s = gl.createShader(type);
@@ -820,6 +1692,27 @@ var SH = (function () {
     gl.useProgram(prog);
     uVP = gl.getUniformLocation(prog, "uVP");
     uploadSets();
+    // decais (texturas)
+    var dvs = compile(gl.VERTEX_SHADER, DVS), dfs = compile(gl.FRAGMENT_SHADER, DFS);
+    dprog = null;
+    if (dvs && dfs) {
+      var dp = gl.createProgram(); gl.attachShader(dp, dvs); gl.attachShader(dp, dfs);
+      gl.bindAttribLocation(dp, 0, "aPos"); gl.bindAttribLocation(dp, 1, "aUV"); gl.bindAttribLocation(dp, 2, "aCol");
+      gl.linkProgram(dp);
+      if (gl.getProgramParameter(dp, gl.LINK_STATUS)) {
+        dprog = dp; duVP = gl.getUniformLocation(dp, "uVP");
+        if (!ATLAS) ATLAS = makeAtlas();
+        decTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, decTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ATLAS);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        var df = new Float32Array(DEC); decN = df.length / 9;
+        decVbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, decVbo); gl.bufferData(gl.ARRAY_BUFFER, df, gl.STATIC_DRAW);
+      }
+    }
+    gl.useProgram(prog);
     dynVbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, dynVbo); gl.bufferData(gl.ARRAY_BUFFER, dyn.byteLength, gl.DYNAMIC_DRAW);
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     gl.enableVertexAttribArray(0); gl.enableVertexAttribArray(1);
@@ -854,6 +1747,18 @@ var SH = (function () {
       gl.drawArrays(gl.TRIANGLES, 0, o.n); stats.draws++; stats.verts += o.n;
     });
   }
+  function drawDecals() {
+    if (!dprog || !decN) return;
+    gl.useProgram(dprog); gl.uniformMatrix4fv(duVP, false, VP);
+    gl.bindTexture(gl.TEXTURE_2D, decTex);
+    gl.bindBuffer(gl.ARRAY_BUFFER, decVbo);
+    gl.enableVertexAttribArray(2);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 36, 0); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 36, 12); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 36, 20);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.drawArrays(gl.TRIANGLES, 0, decN); stats.draws++; stats.verts += decN;
+    gl.depthMask(true); gl.disable(gl.BLEND); gl.disableVertexAttribArray(2);
+    gl.useProgram(prog); gl.uniformMatrix4fv(uVP, false, VP);
+  }
   // tudo que se mexe vai para um único buffer e sai em UMA chamada de desenho
   function flushDynamic() {
     if (!di) return;
@@ -863,7 +1768,7 @@ var SH = (function () {
     gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
     gl.drawArrays(gl.TRIANGLES, 0, di / 6); stats.draws++; stats.verts += di / 6;
   }
-  var CORN = new Float32Array(24);
+  var CORN = new Float32Array(24), ONE3 = [1, 1, 1];
   var FACES = [[2, 6, 7, 3], [4, 5, 7, 6], [1, 0, 2, 3], [5, 1, 3, 7], [0, 4, 6, 2]];
   function emitBox(M, c, lit) {
     if (di + 180 > DCAP) return;
@@ -878,13 +1783,13 @@ var SH = (function () {
     }
     var L, f, F, a, b, cc, d, n;
     for (f = 0; f < 5; f++) {
-      if (lit === 0) L = 1;
-      else if (f === 0) L = lightOf(Y0 * ly, Y1 * ly, Y2 * ly);
-      else if (f === 1) L = lightOf(Z0 * lz, Z1 * lz, Z2 * lz);
-      else if (f === 2) L = lightOf(-Z0 * lz, -Z1 * lz, -Z2 * lz);
-      else if (f === 3) L = lightOf(X0 * lx, X1 * lx, X2 * lx);
-      else L = lightOf(-X0 * lx, -X1 * lx, -X2 * lx);
-      var r = c[0] * L, g = c[1] * L, bb = c[2] * L;
+      if (lit === 0) L = ONE3;
+      else if (f === 0) L = lightRGB(Y0 * ly, Y1 * ly, Y2 * ly);
+      else if (f === 1) L = lightRGB(Z0 * lz, Z1 * lz, Z2 * lz);
+      else if (f === 2) L = lightRGB(-Z0 * lz, -Z1 * lz, -Z2 * lz);
+      else if (f === 3) L = lightRGB(X0 * lx, X1 * lx, X2 * lx);
+      else L = lightRGB(-X0 * lx, -X1 * lx, -X2 * lx);
+      var r = c[0] * L[0], g = c[1] * L[1], bb = c[2] * L[2];
       F = FACES[f]; a = F[0] * 3; b = F[1] * 3; cc = F[2] * 3; d = F[3] * 3;
       dyn[di++] = CORN[a]; dyn[di++] = CORN[a + 1]; dyn[di++] = CORN[a + 2]; dyn[di++] = r; dyn[di++] = g; dyn[di++] = bb;
       dyn[di++] = CORN[b]; dyn[di++] = CORN[b + 1]; dyn[di++] = CORN[b + 2]; dyn[di++] = r; dyn[di++] = g; dyn[di++] = bb;
@@ -1018,6 +1923,7 @@ var SH = (function () {
       var sw = s * swing;
       part(par, 0, 0.95 - bob, s * 0.32, 0, sw, 0, -0.45, 0, 0.55, 0.9, 0.6, pants);
       part(par, 0, 0.95 - bob, s * 0.32, 0, sw, 0.08, -0.82, 0, 0.72, 0.3, 0.7, BOOT);
+      part(par, 0, 0.95 - bob, s * 0.32, 0, sw, 0.2, -0.25, 0, 0.3, 0.3, 0.64, [0.13, 0.14, 0.15]);
     }
     pb(par, 0, 1.5, 0, 0.85, 1.0, 1.4, col);
     pb(par, 0.04, 1.58, 0, 0.97, 0.80, 1.5, VEST);
@@ -1029,6 +1935,12 @@ var SH = (function () {
     pb(par, 0.69, 2.62, -0.24, 0.04, 0.13, 0.13, [0.05, 0.05, 0.06]); pb(par, 0.69, 2.62, 0.24, 0.04, 0.13, 0.13, [0.05, 0.05, 0.06]);
     pb(par, 0, 3.2, 0, 1.38, 0.42, 1.4, helm);
     pb(par, 0.0, 3.43, 0, 1.2, 0.08, 0.38, col);
+    pb(par, -0.68, 1.7, 0, 0.55, 1.05, 1.15, [0.20, 0.23, 0.17]); pb(par, -0.68, 1.15, 0, 0.6, 0.28, 1.2, [0.12, 0.13, 0.12]); pb(par, -0.98, 1.75, 0, 0.08, 0.5, 0.7, mulc(col, 0.8));
+    pb(par, 0, 2.05, -0.8, 0.55, 0.3, 0.5, mulc(col, 0.65)); pb(par, 0, 2.05, 0.8, 0.55, 0.3, 0.5, mulc(col, 0.65));
+    pb(par, 0.5, 1.02, -0.55, 0.32, 0.32, 0.3, [0.2, 0.22, 0.18]); pb(par, 0.5, 1.02, 0.55, 0.32, 0.32, 0.3, [0.2, 0.22, 0.18]);
+    pb(par, 0.62, 1.55, 0, 0.1, 0.5, 0.5, [0.55, 0.55, 0.58], 0);
+    pb(par, 0, 2.95, -0.7, 0.5, 0.45, 0.18, [0.11, 0.12, 0.13]); pb(par, 0, 2.95, 0.7, 0.5, 0.45, 0.18, [0.11, 0.12, 0.13]);
+    pb(par, 0.55, 3.5, 0, 0.3, 0.22, 0.4, [0.12, 0.12, 0.14]); pb(par, 0.72, 3.5, 0, 0.1, 0.14, 0.22, [0.3, 0.9, 0.5], 0);
     pb(par, 0.68, 3.08, 0, 0.3, 0.14, 1.2, mulc(helm, 0.7));
     if (melee) {
       var t = (now - (p.swingAt || -1e9)) / 260, ang = 0.5;
@@ -1074,7 +1986,9 @@ var SH = (function () {
     pb(par, 0, 2.5, 0.05, 1.15, 1.05, 1.2, ZS);
     pb(par, 0.6, 2.62, -0.25, 0.06, 0.22, 0.22, [0.95, 0.9, 0.2], 0); pb(par, 0.6, 2.62, 0.3, 0.06, 0.22, 0.22, [0.95, 0.9, 0.2], 0);
     pb(par, 0.6, 2.2, 0.03, 0.06, 0.12, 0.7, [0.25, 0.08, 0.08]);
-    pb(par, 0, 3.12, 0.05, 1.15, 0.22, 1.2, [0.16, 0.2, 0.14]);
+    pb(par, 0, 3.12, 0.05, 1.15, 0.22, 1.2, [0.16, 0.2, 0.14]); pb(par, -0.3, 3.3, 0.25, 0.5, 0.25, 0.5, [0.12, 0.14, 0.1]);
+    pb(par, 0.62, 2.12, 0.03, 0.06, 0.1, 0.56, [0.9, 0.88, 0.78]); pb(par, 0.45, 1.75, 0.28, 0.08, 0.45, 0.5, ZB); pb(par, 0.46, 1.4, -0.1, 0.06, 0.5, 0.7, [0.82, 0.78, 0.68]);
+    pb(par, 0, 1.05, 0.45, 0.88, 0.32, 0.5, [0.24, 0.22, 0.18]); pb(par, 0, 1.9, -0.55, 0.9, 0.5, 0.45, [0.3, 0.28, 0.22]);
     var up = Math.sin(now / 260 + z.phase) * 0.08;
     pb(par, 1.0, 1.9 + up, -0.7, 1.6, 0.36, 0.36, ZS); pb(par, 1.0, 1.9 - up, 0.7, 1.6, 0.36, 0.36, ZS);
     pb(par, 1.85, 1.9 + up, -0.7, 0.3, 0.34, 0.34, ZB); pb(par, 1.85, 1.9 - up, 0.7, 0.3, 0.34, 0.34, ZB);
@@ -1271,7 +2185,17 @@ var SH = (function () {
 
   /* ---- rede ---- */
   var ws = null, wsOpen = false, retryT = null, connectStart = Date.now(), authBusy = false;
-  function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+  var localMode = false, localFrom = "login";
+  function send(o) { if (localMode) { LOCAL.send(o); return; } if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+  function startLocal() {
+    initAudio();
+    localFrom = screen === "lobby" ? "lobby" : "login";
+    var nm = acct.name || ($("nick") && $("nick").value.trim()) || "";
+    if (!/^[A-Za-z0-9_-]{3,12}$/.test(nm)) nm = "Voce";
+    me.name = safeName(nm); localMode = true;
+    LOCAL.start(nm, (acct.ci | 0) || -1, onNet, 7);
+  }
+  function endLocal() { localMode = false; LOCAL.stop(); }
   function scheduleRetry() { if (retryT) return; retryT = setTimeout(function () { retryT = null; connect(); }, 2000); }
   function loadCreds() { try { var s = localStorage.getItem("arena-acct"); if (s) creds = JSON.parse(s); } catch (e) { creds = null; } }
   function saveCreds() { try { localStorage.setItem("arena-acct", JSON.stringify(creds)); } catch (e) {} }
@@ -1313,11 +2237,11 @@ var SH = (function () {
       case "pinvite": showInvite(m); break;
       case "kicked": creds = creds; notice("Sua conta entrou em outro aparelho."); break;
       case "lobby": toLobby(); break;
-      case "tolobby": toLobby(); break;
+      case "tolobby": if (localMode) { endLocal(); if (localFrom === "lobby" && acct.id) toLobby(); else showLogin(); } else toLobby(); break;
       case "joined": onJoined(m); break;
       case "ro":
         ros.clear();
-        for (i = 0; i < m.l.length; i++) ros.set(m.l[i][0], { n: m.l[i][1], ci: m.l[i][2], tm: m.l[i][3], k: m.l[i][4], out: m.l[i][5] });
+        for (i = 0; i < m.l.length; i++) ros.set(m.l[i][0], { n: m.l[i][1], ci: m.l[i][2], tm: m.l[i][3], k: m.l[i][4], out: m.l[i][5], bot: m.l[i][6] });
         checkEliminated();
         break;
       case "match": onMatch(m); break;
@@ -1386,7 +2310,7 @@ var SH = (function () {
     me.nid = m.nid; me.ci = m.ci | 0; me.g = m.g; me.m = m.m; me.act = m.act; me.pts = m.pts; me.mk = m.mk;
     pickups = m.pk || [];
     ros.clear();
-    for (var i = 0; i < m.ro.length; i++) ros.set(m.ro[i][0], { n: m.ro[i][1], ci: m.ro[i][2], tm: m.ro[i][3], k: m.ro[i][4], out: m.ro[i][5] });
+    for (var i = 0; i < m.ro.length; i++) ros.set(m.ro[i][0], { n: m.ro[i][1], ci: m.ro[i][2], tm: m.ro[i][3], k: m.ro[i][4], out: m.ro[i][5], bot: m.ro[i][6] });
     if (!resume) {
       me.x = m.x; me.y = m.y; me.hp = m.hp; me.ep = m.ep; me.med = 0; me.band = 0; me.alive = true; me.out = !!m.out; me.inv = 2.5;
       bullets.length = 0; rem.clear(); zom.clear(); eliminatedShown = false; seenMid = m.match.mid; resShownMid = -1;
@@ -1598,7 +2522,7 @@ var SH = (function () {
     setHtml($("banner"), bn);
     if (me.out) { var st = specTarget(); setText($("specn"), st ? st.n : "ninguém"); }
     $("spec").hidden = !(me.out && me.watching) || match.ph === "end";
-    if (match.ph === "end") setText($("resnext"), "Voltando ao almoço em " + Math.max(0, Math.ceil((resAt - Date.now()) / 1000)) + " s");
+    if (match.ph === "end") setText($("resnext"), localMode ? "" : "Voltando ao almoço em " + (localMode ? "" : Math.max(0, Math.ceil((resAt - Date.now()) / 1000)) + " s"));
     // botão de pegar arma
     var pb = $("pickb");
     if (nearPk && me.alive) { pb.hidden = false; setText(pb, "Pegar " + (WEAPONS[nearPk[2]] ? WEAPONS[nearPk[2]].n : "")); } else pb.hidden = true;
@@ -1615,9 +2539,15 @@ var SH = (function () {
       if (r.w) li.className = "win"; else if (r.o) li.className = "out";
       li.append(a, b); return li;
     }));
-    $("result").hidden = false; $("elim").hidden = true; $("spec").hidden = true;
+    $("resAgain").hidden = !localMode; $("result").hidden = false; $("elim").hidden = true; $("spec").hidden = true;
   }
-  function leaveToLobby() { send({ t: "leave" }); }
+  function leaveToLobby() {
+    if (localMode) { send({ t: "leave" }); endLocal(); if (localFrom === "lobby" && acct.id) toLobby(); else showLogin(); return; }
+    send({ t: "leave" });
+  }
+  $("offGo").addEventListener("click", startLocal);
+  $("bOff").addEventListener("click", startLocal);
+  $("resAgain").addEventListener("click", function () { if (localMode) { var f = localFrom; endLocal(); screen = f; startLocal(); } });
   var exitT = null;
   $("bExit").addEventListener("click", function () {
     var b = $("bExit");
@@ -1882,7 +2812,7 @@ var SH = (function () {
         if (pointHit(bl.x, bl.y)) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.18 }); break; }
         if (bl.own) {
           zom.forEach(function (z, id) { if (!gone && Math.abs(z.x - bl.x) < 1.5 && Math.abs(z.y - bl.y) < 1.5 && Math.hypot(z.x - bl.x, z.y - bl.y) < 1.5) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 }); send({ t: "zh", i: id }); } });
-          if (!gone && room.kind !== "z") rem.forEach(function (s, id) { var r = ros.get(id); if (!gone && !(r && r.tm === tm) && Math.hypot(s.x - bl.x, s.y - bl.y) < PR + 0.5) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 }); } });
+          if (!gone && room.kind !== "z") rem.forEach(function (s, id) { var r = ros.get(id); if (!gone && !(r && r.tm === tm) && Math.hypot(s.x - bl.x, s.y - bl.y) < PR + 0.5) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 }); if (r && r.bot && match.ph === "play") send({ t: "ph", n: id }); } });
         } else if (hurtOK) {
           var rb = ros.get(bl.from);
           if (!(rb && rb.tm === tm) && Math.hypot(me.x - bl.x, me.y - bl.y) < PR + 0.5) {
@@ -1935,6 +2865,7 @@ var SH = (function () {
     var i, t = now / 1000;
     frameBegin();
     drawSet(SETS.map, true);
+    drawDecals();
     for (i = 0; i < pickups.length; i++) { var pk = pickups[i]; if (inView(pk[3], pk[4], 6)) drawPickup(pk, t, i); }
     zom.forEach(function (z) { if (inView(z.x, z.y, 5)) { drawShadow(z.x, z.y); drawZombie(z, now); } });
     rem.forEach(function (s) { if (inView(s.x, s.y, 5)) drawShadow(s.x, s.y); });
@@ -2089,7 +3020,7 @@ var SH = (function () {
   connect();
   requestAnimationFrame(frame);
   if ("serviceWorker" in navigator) window.addEventListener("load", function () { try { navigator.serviceWorker.register("/sw.js").catch(noop); } catch (e) {} });
-  if (TEST) window.__arena = { me: me, W: W, H: H, solids: solids, stats: stats, get screen() { return screen; }, get room() { return room; }, get pickups() { return pickups; }, get zom() { return zom; }, get rem() { return rem; }, get match() { return match; }, get glOK() { return glOK; }, get rscale() { return rscale; }, get frames() { return frames; }, hurt: hurt, send: send, dropWs: function () { ws.close(); }, setZoom: function (z) { camZoom = z; }, setView: function (x, y) { me.x = x; me.y = y; } };
+  if (TEST) window.__arena = { local: LOCAL, me: me, W: W, H: H, solids: solids, stats: stats, get screen() { return screen; }, get room() { return room; }, get pickups() { return pickups; }, get zom() { return zom; }, get rem() { return rem; }, get match() { return match; }, get glOK() { return glOK; }, get rscale() { return rscale; }, get frames() { return frames; }, hurt: hurt, send: send, dropWs: function () { ws.close(); }, setZoom: function (z) { camZoom = z; }, setView: function (x, y) { me.x = x; me.y = y; } };
 
 
 })();
