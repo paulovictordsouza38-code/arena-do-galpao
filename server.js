@@ -55,6 +55,8 @@ const SH = (function () {
   function container(x, y, w, h, c) { S("container", x, y, w, h, 6.6, { c: c }); }
   function barrel(x, y) { S("barrel", x, y, 1.5, 1.5, 1.9); }
   function pallet(x, y) { S("pallet", x, y, 2.6, 2.6, 2.4); }
+  function forklift(x, y) { S("forklift", x, y, 5.6, 2.6, 4.4); }
+  function tires(x, y) { S("tires", x, y, 2.6, 2.6, 2.4); }
   function van(x, y, w, h) { S("van", x, y, w, h, 5.0); }
   // avião (sempre deitado no eixo x): fuselagem + asa + cauda
   function plane(cx, cy, len, span, d, c) {
@@ -81,6 +83,7 @@ const SH = (function () {
     barrel(86.4, 52); barrel(86.4, 53.9); barrel(84.6, 52.9);
     barrel(14.2, 54); barrel(16, 55.3);
     pallet(44, 33.4); pallet(70, 35); pallet(34, 43); pallet(48, 14.6); pallet(80, 60.6);
+    forklift(40, 56); tires(14.6, 30); tires(54, 14.6);
     // pátio
     container(98, 12, 14, 5.2, [0.75, 0.22, 0.20]); container(118, 12, 14, 5.2, [0.20, 0.40, 0.72]);
     container(98, 62, 14, 5.2, [0.90, 0.62, 0.15]); container(120, 62, 14, 5.2, [0.22, 0.55, 0.32]);
@@ -88,6 +91,7 @@ const SH = (function () {
     van(120, 30, 8, 4); van(116, 50, 8, 4); van(140, 14, 4, 8); van(140, 58, 4, 8);
     crate(100, 22, 2.6, 2.6); crate(126, 42, 3, 3, true); crate(108, 50, 3, 3); crate(140, 46, 2.6, 2.6);
     // rua e laterais
+    forklift(96, 46); tires(132, 26); tires(100, 70);
     van(12, 80, 8, 4); van(34, 84, 8, 4); van(58, 80, 8, 4); van(108, 82, 8, 4); van(130, 78, 8, 4);
     S("booth", 88, 76, 7, 6, 5.4);
     van(30, 4, 8, 4); van(66, 4.5, 8, 4); van(108, 4, 8, 4);
@@ -121,6 +125,7 @@ const SH = (function () {
     plane(180, 47, 22, 22, 1, [0.20, 0.45, 0.80]);
     plane(214, 53, 22, 22, -1, [0.85, 0.20, 0.25]);
     plane(250, 48, 13, 11, 1, [0.25, 0.60, 0.40]);
+    forklift(168, 60); tires(200, 44); tires(240, 70);
     S("cart", 172, 35, 3.6, 2, 1.3); S("cart", 195, 35, 3.6, 2, 1.3); S("cart", 200, 38, 3.6, 2, 1.3);
     container(228, 38, 10, 4.4, [0.85, 0.50, 0.15]); container(240, 38, 4.4, 8, [0.30, 0.45, 0.70]);
     van(156, 56, 8, 4); van(196, 62, 8, 4); van(228, 60, 4, 8);
@@ -867,8 +872,8 @@ function stepBots(r, dt, now) {
         B.fireAt = now + gap;
         const err = (Math.random() - 0.5) * (0.16 + (1 - B.skill) * 0.28);
         const sa = B.a + err;
-        const dist0 = Math.max(4, aim ? Math.hypot(aim[0] - B.x, aim[1] - B.y) : 20), th = 1.7 + (Math.random() < 0.1 + B.skill * 0.1 ? 1.5 : 0) + (Math.random() - 0.5) * 0.5;
-        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa), v: r2(Math.max(-1, Math.min(1, (th - 1.75) / dist0))) });
+        const dist0 = Math.max(4, aim ? Math.hypot(aim[0] - B.x, aim[1] - B.y) : 20), th = 2.9 + (Math.random() < 0.1 + B.skill * 0.1 ? 1.0 : 0) + (Math.random() - 0.5) * 0.8;
+        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa), v: r2(Math.max(-1, Math.min(1, (th - 2.78) / dist0))) });
         for (const Q of r.players) if (Q !== B && !Q.bot && Math.abs(Q.x - B.x) < 90 && Math.abs(Q.y - B.y) < 70) sendP(Q, msg);
         // bots contra bots e zumbis: acerto por varredura (contra o humano, o cliente decide com a própria bala)
         const dx = Math.cos(sa), dy = Math.sin(sa), reach = W1.spd * W1.life;
