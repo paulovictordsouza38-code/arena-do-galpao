@@ -156,6 +156,11 @@ const SH = (function () {
     for (var i = 0; i < l.length; i++) { var s = l[i]; if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h) return true; }
     return false;
   }
+  function solidAt(x, y) {
+    var l = cell(x, y); if (!l) return { hg: 99 };
+    for (var i = 0; i < l.length; i++) { var s = l[i]; if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h) return s; }
+    return null;
+  }
   // ponto livre aleatório (dentro de um retângulo [x0,y0,x1,y1])
   function freePoint(r, rnd) {
     rnd = rnd || Math.random;
@@ -168,7 +173,7 @@ const SH = (function () {
   var ZONES = { all: [6, 6, 264, 90], gal: [14, 14, 88, 64], yard: [94, 8, 144, 72] };
 
   return { W: W, H: H, PR: PR, SPEED: SPEED, MAXHP: MAXHP, MAXEP: MAXEP, GAL: GAL, NG: NG, WEAPONS: WEAPONS, PROG: PROG,
-    GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, freePoint: freePoint, ZONES: ZONES };
+    GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, solidAt: solidAt, freePoint: freePoint, ZONES: ZONES };
 })();
 
 
@@ -303,6 +308,7 @@ function partnerOf(P) {
 const MAXP = 30, JOIN_WINDOW = 180000, MATCH_MS = 600000, CD_MS = 10000, END_MS = 10000, GHOST_MS = 20000;
 const ZHP = 90, ZSPEED = 3.4, ZR = 0.9, ZDMG = 14;
 const WN = SH.WEAPONS;
+const HEAD_MUL = 2.2, BODY_MUL = 0.8;   // tiro na cabeça dá mais dano; no resto do corpo, menos
 const rooms = new Map();
 let roomSeq = 1;
 
@@ -631,7 +637,7 @@ function inRoomMsg(P, m, raw) {
       if (P.shots.length >= 16) return;
       P.shots.push(now);
       const w = P.g;
-      const msg = JSON.stringify({ t: "shot", n: P.nid, w, x: r1(num(m.x, 0, W0, P.x)), y: r1(num(m.y, 0, H0, P.y)), a: r2(num(m.a, -7, 7, 0)) });
+      const msg = JSON.stringify({ t: "shot", n: P.nid, w, x: r1(num(m.x, 0, W0, P.x)), y: r1(num(m.y, 0, H0, P.y)), a: r2(num(m.a, -7, 7, 0)), v: r2(num(m.v, -1, 1, 0)) });
       for (const Q of r.players) if (Q !== P && Math.abs(Q.x - P.x) < 90 && Math.abs(Q.y - P.y) < 70) sendP(Q, msg);
       break;
     }
@@ -656,7 +662,7 @@ function inRoomMsg(P, m, raw) {
       P.zh.push(now);
       const z = r.zombies.find((q) => q.i === m.i);
       if (!z || Math.hypot(z.x - P.x, z.y - P.y) > 60) return;
-      z.hp -= WN[P.g].dmg;
+      z.hp -= WN[P.g].dmg * (m.hs ? HEAD_MUL : BODY_MUL);
       if (z.hp <= 0) killZombie(r, z, P);
       break;
     }
@@ -669,7 +675,7 @@ function inRoomMsg(P, m, raw) {
       let B = null; for (const Q of r.players) if (Q.nid === m.n && Q.bot) B = Q;
       if (!B || !B.al || B.out || B.team === P.team || B.inv > 0) return;
       if (Math.hypot(B.x - P.x, B.y - P.y) > 62) return;
-      hitBot(r, B, WN[P.g].dmg, P);
+      hitBot(r, B, WN[P.g].dmg * (m.hs ? HEAD_MUL : BODY_MUL), P);
       break;
     }
     case "kill": {
@@ -845,7 +851,8 @@ function stepBots(r, dt, now) {
         B.fireAt = now + gap;
         const err = (Math.random() - 0.5) * (0.16 + (1 - B.skill) * 0.28);
         const sa = B.a + err;
-        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa) });
+        const dist0 = Math.max(4, aim ? Math.hypot(aim[0] - B.x, aim[1] - B.y) : 20), th = 1.7 + (Math.random() < 0.1 + B.skill * 0.1 ? 1.5 : 0) + (Math.random() - 0.5) * 0.5;
+        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa), v: r2(Math.max(-1, Math.min(1, (th - 1.75) / dist0))) });
         for (const Q of r.players) if (Q !== B && !Q.bot && Math.abs(Q.x - B.x) < 90 && Math.abs(Q.y - B.y) < 70) sendP(Q, msg);
         // bots contra bots e zumbis: acerto por varredura (contra o humano, o cliente decide com a própria bala)
         const dx = Math.cos(sa), dy = Math.sin(sa), reach = W1.spd * W1.life;
@@ -860,7 +867,7 @@ function stepBots(r, dt, now) {
         for (const Q of all) if (Q !== B && Q.bot && Q.team !== B.team) consider(Q, false);
         for (const z of r.zombies) consider(z, true);
         if (best) {
-          const dmg = W1.dmg * (W1.pel || 1) * 0.6;
+          const dmg = W1.dmg * (W1.pel || 1) * 0.6 * (Math.random() < 0.12 ? HEAD_MUL : BODY_MUL);
           if (best[1]) { best[0].hp -= dmg; if (best[0].hp <= 0) killZombie(r, best[0], B); }
           else hitBot(r, best[0], dmg, B);
         }

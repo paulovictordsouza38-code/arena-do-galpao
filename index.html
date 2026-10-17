@@ -312,6 +312,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   <h4>Qualidade gráfica</h4>
   <div class="seg" id="gfxSeg"><button type="button" data-g="perf">Desempenho</button><button type="button" data-g="bal">Equilibrado</button><button type="button" data-g="high">Qualidade</button></div>
   <p id="gfxInfo"></p>
+  <h4>Celular</h4>
+  <button id="autoBtn" class="btn alt" type="button" style="width:100%"></button>
+  <p>A mira gruda no inimigo enquanto você arrasta a tela. Com isso ligado, o tiro sai sozinho quando a mira encaixa.</p>
   <h4>Volume dos efeitos: <span id="volN"></span></h4>
   <input id="vol" type="range" min="0" max="100" step="5">
   <div style="margin-top:12px;text-align:right"><button class="btn alt close" type="button">Fechar</button></div>
@@ -510,6 +513,11 @@ var SH = (function () {
     for (var i = 0; i < l.length; i++) { var s = l[i]; if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h) return true; }
     return false;
   }
+  function solidAt(x, y) {
+    var l = cell(x, y); if (!l) return { hg: 99 };
+    for (var i = 0; i < l.length; i++) { var s = l[i]; if (x > s.x && x < s.x + s.w && y > s.y && y < s.y + s.h) return s; }
+    return null;
+  }
   // ponto livre aleatório (dentro de um retângulo [x0,y0,x1,y1])
   function freePoint(r, rnd) {
     rnd = rnd || Math.random;
@@ -522,7 +530,7 @@ var SH = (function () {
   var ZONES = { all: [6, 6, 264, 90], gal: [14, 14, 88, 64], yard: [94, 8, 144, 72] };
 
   return { W: W, H: H, PR: PR, SPEED: SPEED, MAXHP: MAXHP, MAXEP: MAXEP, GAL: GAL, NG: NG, WEAPONS: WEAPONS, PROG: PROG,
-    GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, freePoint: freePoint, ZONES: ZONES };
+    GUN_W: GUN_W, MELEE_W: MELEE_W, solids: solids, circleHit: circleHit, pointHit: pointHit, solidAt: solidAt, freePoint: freePoint, ZONES: ZONES };
 })();
 
 /* ============ Modo offline: a sala do servidor roda aqui dentro do navegador ============ */
@@ -539,6 +547,7 @@ var LOCAL = (function () {
 const MAXP = 30, JOIN_WINDOW = 180000, MATCH_MS = 600000, CD_MS = 10000, END_MS = 10000, GHOST_MS = 20000;
 const ZHP = 90, ZSPEED = 3.4, ZR = 0.9, ZDMG = 14;
 const WN = SH.WEAPONS;
+const HEAD_MUL = 2.2, BODY_MUL = 0.8;   // tiro na cabeça dá mais dano; no resto do corpo, menos
 const rooms = new Map();
 let roomSeq = 1;
 
@@ -867,7 +876,7 @@ function inRoomMsg(P, m, raw) {
       if (P.shots.length >= 16) return;
       P.shots.push(now);
       const w = P.g;
-      const msg = JSON.stringify({ t: "shot", n: P.nid, w, x: r1(num(m.x, 0, W0, P.x)), y: r1(num(m.y, 0, H0, P.y)), a: r2(num(m.a, -7, 7, 0)) });
+      const msg = JSON.stringify({ t: "shot", n: P.nid, w, x: r1(num(m.x, 0, W0, P.x)), y: r1(num(m.y, 0, H0, P.y)), a: r2(num(m.a, -7, 7, 0)), v: r2(num(m.v, -1, 1, 0)) });
       for (const Q of r.players) if (Q !== P && Math.abs(Q.x - P.x) < 90 && Math.abs(Q.y - P.y) < 70) sendP(Q, msg);
       break;
     }
@@ -892,7 +901,7 @@ function inRoomMsg(P, m, raw) {
       P.zh.push(now);
       const z = r.zombies.find((q) => q.i === m.i);
       if (!z || Math.hypot(z.x - P.x, z.y - P.y) > 60) return;
-      z.hp -= WN[P.g].dmg;
+      z.hp -= WN[P.g].dmg * (m.hs ? HEAD_MUL : BODY_MUL);
       if (z.hp <= 0) killZombie(r, z, P);
       break;
     }
@@ -905,7 +914,7 @@ function inRoomMsg(P, m, raw) {
       let B = null; for (const Q of r.players) if (Q.nid === m.n && Q.bot) B = Q;
       if (!B || !B.al || B.out || B.team === P.team || B.inv > 0) return;
       if (Math.hypot(B.x - P.x, B.y - P.y) > 62) return;
-      hitBot(r, B, WN[P.g].dmg, P);
+      hitBot(r, B, WN[P.g].dmg * (m.hs ? HEAD_MUL : BODY_MUL), P);
       break;
     }
     case "kill": {
@@ -1081,7 +1090,8 @@ function stepBots(r, dt, now) {
         B.fireAt = now + gap;
         const err = (Math.random() - 0.5) * (0.16 + (1 - B.skill) * 0.28);
         const sa = B.a + err;
-        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa) });
+        const dist0 = Math.max(4, aim ? Math.hypot(aim[0] - B.x, aim[1] - B.y) : 20), th = 1.7 + (Math.random() < 0.1 + B.skill * 0.1 ? 1.5 : 0) + (Math.random() - 0.5) * 0.5;
+        const msg = JSON.stringify({ t: "shot", n: B.nid, w: B.g, x: r1(B.x), y: r1(B.y), a: r2(sa), v: r2(Math.max(-1, Math.min(1, (th - 1.75) / dist0))) });
         for (const Q of r.players) if (Q !== B && !Q.bot && Math.abs(Q.x - B.x) < 90 && Math.abs(Q.y - B.y) < 70) sendP(Q, msg);
         // bots contra bots e zumbis: acerto por varredura (contra o humano, o cliente decide com a própria bala)
         const dx = Math.cos(sa), dy = Math.sin(sa), reach = W1.spd * W1.life;
@@ -1096,7 +1106,7 @@ function stepBots(r, dt, now) {
         for (const Q of all) if (Q !== B && Q.bot && Q.team !== B.team) consider(Q, false);
         for (const z of r.zombies) consider(z, true);
         if (best) {
-          const dmg = W1.dmg * (W1.pel || 1) * 0.6;
+          const dmg = W1.dmg * (W1.pel || 1) * 0.6 * (Math.random() < 0.12 ? HEAD_MUL : BODY_MUL);
           if (best[1]) { best[0].hp -= dmg; if (best[0].hp <= 0) killZombie(r, best[0], B); }
           else hitBot(r, best[0], dmg, B);
         }
@@ -1296,8 +1306,9 @@ function stepBots(r, dt, now) {
   var TIERC = [[0.5, 0.5, 0.5], [0.95, 0.95, 0.95], [0.30, 0.90, 0.40], [1.0, 0.85, 0.30], [0.30, 0.60, 1.0], [1.0, 0.60, 0.20], [0.95, 0.35, 0.85], [1.0, 0.25, 0.30], [0.7, 1.0, 1.0], [0.8, 0.8, 0.85], [0.9, 0.9, 0.95], [1.0, 0.5, 0.2]];
   var MUZZLE = [2.0, 2.9, 3.1, 3.2, 3.2, 3.6, 3.9, 3.9, 5.2];
 
-  var SET = { gfx: "bal", vol: 80 };
-  try { var ss = JSON.parse(localStorage.getItem("arena-set") || "null"); if (ss) { if (/^(perf|bal|high)$/.test(ss.gfx)) SET.gfx = ss.gfx; if (ss.vol >= 0 && ss.vol <= 100) SET.vol = +ss.vol; } } catch (e) {}
+  var HEAD_MUL = 2.2, BODY_MUL = 0.8, MUZ_H = 1.75, HEAD_Y = 2.7, TOP_Y = 4.1;
+  var SET = { gfx: "bal", vol: 80, auto: true };
+  try { var ss = JSON.parse(localStorage.getItem("arena-set") || "null"); if (ss) { if (/^(perf|bal|high)$/.test(ss.gfx)) SET.gfx = ss.gfx; if (ss.vol >= 0 && ss.vol <= 100) SET.vol = +ss.vol; if (ss.auto === false) SET.auto = false; } } catch (e) {}
   function saveSet() { try { localStorage.setItem("arena-set", JSON.stringify(SET)); } catch (e) {} }
   function $(id) { return document.getElementById(id); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -1933,8 +1944,8 @@ function stepBots(r, dt, now) {
     emitBox(PT, c, lit);
   }
   function pb(par, cx, cy, cz, sx, sy, sz, c, lit) { part(par, cx, cy, cz, 0, 0, 0, 0, 0, sx, sy, sz, c, lit); }
-  var SPH = (function () {
-    var S = 8, R = 4, t = [], i, j;
+  function buildSph(S, R) {
+    var t = [], i, j;
     function P(a, b) { var th = b / R * Math.PI, ph = a / S * 6.2832; return [Math.sin(th) * Math.cos(ph) * 0.5, Math.cos(th) * 0.5, Math.sin(th) * Math.sin(ph) * 0.5]; }
     for (j = 0; j < R; j++) for (i = 0; i < S; i++) {
       var a = P(i, j), b = P(i + 1, j), c = P(i + 1, j + 1), d = P(i, j + 1);
@@ -1942,30 +1953,52 @@ function stepBots(r, dt, now) {
       if (j < R - 1) t.push(a, d, c);
     }
     return t;
-  })();
-  function emitEll(M, c, lit) {
-    var n = SPH.length;
+  }
+  var SPH = buildSph(8, 4), SPH2 = buildSph(12, 6), gHi = true;
+  var CAMOC = [[0.31, 0.36, 0.20], [0.17, 0.22, 0.13], [0.47, 0.40, 0.25], [0.09, 0.11, 0.08]];
+  function camoPick(x, y, z, seed) {
+    var h = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed * 19.19) * 43758.5453; h -= Math.floor(h);
+    return h < 0.36 ? CAMOC[0] : h < 0.64 ? CAMOC[1] : h < 0.9 ? CAMOC[2] : CAMOC[3];
+  }
+  // elipsoide arredondado; camo > 0 pinta manchas de camuflagem (cada triângulo uma cor)
+  function emitEll(M, c, lit, camo) {
+    var T = camo && gHi ? SPH2 : SPH, n = T.length;
     if (di + n * 6 + 6 > DCAP) return;
     var X0 = M[0], X1 = M[1], X2 = M[2], Y0 = M[4], Y1 = M[5], Y2 = M[6], Z0 = M[8], Z1 = M[9], Z2 = M[10];
     var ix = 1 / (X0 * X0 + X1 * X1 + X2 * X2 || 1), iy = 1 / (Y0 * Y0 + Y1 * Y1 + Y2 * Y2 || 1), iz = 1 / (Z0 * Z0 + Z1 * Z1 + Z2 * Z2 || 1);
+    var cc = c;
     for (var k = 0; k < n; k++) {
-      var p = SPH[k], u = p[0], v = p[1], w = p[2];
+      var p = T[k], u = p[0], v = p[1], w = p[2];
+      if (camo && k % 3 === 0) { var p1 = T[k + 1], p2 = T[k + 2]; cc = camoPick((u + p1[0] + p2[0]) * 3, (v + p1[1] + p2[1]) * 3, (w + p1[2] + p2[2]) * 3, camo); }
       var nx = u * 2 * X0 * ix + v * 2 * Y0 * iy + w * 2 * Z0 * iz, ny = u * 2 * X1 * ix + v * 2 * Y1 * iy + w * 2 * Z1 * iz, nz = u * 2 * X2 * ix + v * 2 * Y2 * iy + w * 2 * Z2 * iz;
       var nl = 1 / (Math.hypot(nx, ny, nz) || 1), L = lit === 0 ? ONE3 : lightRGB(nx * nl, ny * nl, nz * nl);
       dyn[di++] = M[12] + u * X0 + v * Y0 + w * Z0; dyn[di++] = M[13] + u * X1 + v * Y1 + w * Z1; dyn[di++] = M[14] + u * X2 + v * Y2 + w * Z2;
-      dyn[di++] = c[0] * L[0]; dyn[di++] = c[1] * L[1]; dyn[di++] = c[2] * L[2];
+      dyn[di++] = cc[0] * L[0]; dyn[di++] = cc[1] * L[1]; dyn[di++] = cc[2] * L[2];
     }
   }
-  function partE(par, px, py, pz, ry, rz, ox, oy, oz, sx, sy, sz, c, lit) {
+  function partE(par, px, py, pz, ry, rz, ox, oy, oz, sx, sy, sz, c, lit, camo) {
     var cyy = Math.cos(ry), syy = Math.sin(ry), czz = Math.cos(rz), szz = Math.sin(rz);
     var r00 = cyy * czz, r01 = -cyy * szz, r02 = syy, r10 = szz, r11 = czz, r20 = -syy * czz, r21 = syy * szz, r22 = cyy;
     LM[0] = r00 * sx; LM[1] = r10 * sx; LM[2] = r20 * sx; LM[3] = 0;
     LM[4] = r01 * sy; LM[5] = r11 * sy; LM[6] = r21 * sy; LM[7] = 0;
     LM[8] = r02 * sz; LM[9] = 0; LM[10] = r22 * sz; LM[11] = 0;
     LM[12] = px + r00 * ox + r01 * oy + r02 * oz; LM[13] = py + r10 * ox + r11 * oy; LM[14] = pz + r20 * ox + r21 * oy + r22 * oz; LM[15] = 1;
-    mMul(PT, par, LM); emitEll(PT, c, lit);
+    mMul(PT, par, LM); emitEll(PT, c, lit, camo);
   }
-  function pe(par, cx, cy, cz, sx, sy, sz, c, lit) { partE(par, cx, cy, cz, 0, 0, 0, 0, 0, sx, sy, sz, c, lit); }
+  function pe(par, cx, cy, cz, sx, sy, sz, c, lit, camo) { partE(par, cx, cy, cz, 0, 0, 0, 0, 0, sx, sy, sz, c, lit, camo); }
+  // membro: elipsoide esticado entre dois pontos (articulações coladas)
+  function limb(par, ax, ay, az, bx, by, bz, th, c, camo) {
+    var dx = bx - ax, dy = by - ay, dz = bz - az, len = Math.hypot(dx, dy, dz) || 0.01, ux = dx / len, uy = dy / len, uz = dz / len;
+    var rx = Math.abs(uy) > 0.9 ? 1 : 0, ry = rx ? 0 : 1;
+    var p1x = uy * 0 - uz * ry, p1y = uz * rx - ux * 0, p1z = ux * ry - uy * rx, pl = Math.hypot(p1x, p1y, p1z) || 1; p1x /= pl; p1y /= pl; p1z /= pl;
+    var p2x = uy * p1z - uz * p1y, p2y = uz * p1x - ux * p1z, p2z = ux * p1y - uy * p1x;
+    var L2 = len * 1.18;
+    LM[0] = p1x * th; LM[1] = p1y * th; LM[2] = p1z * th; LM[3] = 0;
+    LM[4] = ux * L2; LM[5] = uy * L2; LM[6] = uz * L2; LM[7] = 0;
+    LM[8] = p2x * th; LM[9] = p2y * th; LM[10] = p2z * th; LM[11] = 0;
+    LM[12] = (ax + bx) / 2; LM[13] = (ay + by) / 2; LM[14] = (az + bz) / 2; LM[15] = 1;
+    mMul(PT, par, LM); emitEll(PT, c, 1, camo);
+  }
   // rastro de bala: dois planos cruzados (aparece de qualquer ângulo)
   function tracer(x, y, z, ang, len, wid, c) {
     if (di + 72 > DCAP) return;
@@ -2000,6 +2033,7 @@ function stepBots(r, dt, now) {
   function drawShadow(x, y) { disc(x, GY + 0.025, y, 1.25, mulc(floorAt(x, y), 0.6)); }
 
   /* ============ Modelos: armas, soldado, zumbi, itens e o almoço ============ */
+  var WHITE = [1, 1, 1];
   var K_BL = [0.13, 0.14, 0.15], K_ST = [0.45, 0.46, 0.50], K_BR = [0.35, 0.24, 0.14], K_GR = [0.22, 0.23, 0.26], K_TN = [0.58, 0.50, 0.36];
   var K_OL = [0.30, 0.37, 0.22], K_DK = [0.14, 0.15, 0.14], K_FD = [0.66, 0.55, 0.38], K_BK = [0.10, 0.10, 0.11], K_G2 = [0.24, 0.25, 0.28];
   var K_WD = [0.50, 0.30, 0.14], K_SL = [0.78, 0.80, 0.84], FLASHC = [1.0, 0.92, 0.45];
@@ -2068,68 +2102,98 @@ function stepBots(r, dt, now) {
     }
   }
 
-  var SKIN = [0.93, 0.74, 0.58], GLOVE = [0.09, 0.09, 0.10], BOOT = [0.10, 0.10, 0.11], VEST = [0.14, 0.15, 0.17], VEST2 = [0.09, 0.10, 0.11];
+  var SKIN = [0.93, 0.74, 0.58], GLOVE = [0.07, 0.07, 0.08], BOOT = [0.07, 0.07, 0.08], BLK = [0.09, 0.10, 0.11], VT = [0.13, 0.14, 0.16], PLATE = [0.2, 0.21, 0.23], HELM = [0.12, 0.13, 0.14];
   // p: x, y, a, ci, w (arma ativa), phase, mov, flashAt, hand, swingAt
+  // Soldado SWAT com uniforme camuflado: todas as peças se encostam (sem cabeça ou ombreira flutuando)
   function drawSoldier(p, now, big) {
     var col = PAL[(p.ci | 0) % PAL.length];
     var swing = p.mov ? Math.sin(p.phase) * 0.6 : 0;
     var bob = p.mov ? Math.abs(Math.sin(p.phase)) * 0.14 : (big ? Math.sin(now / 520) * 0.03 : 0);
     var par = baseMat(BASE, p.x, GY + bob, p.y, p.a);
-    var pants = [col[0] * 0.30 + 0.07, col[1] * 0.30 + 0.07, col[2] * 0.30 + 0.07];
-    var helm = [0.27, 0.30, 0.25];
     var w = p.w | 0, melee = WEAPONS[w] && WEAPONS[w].k === "m";
-    var firing = now - p.flashAt < 70;
-    var SK = SKIN, VT = [0.15, 0.17, 0.19], OD = [0.22, 0.25, 0.19];
-    for (var s = -1; s <= 1; s += 2) {
-      var sw = s * swing;
-      partE(par, 0, 0.95 - bob, s * 0.34, 0, sw, 0, -0.38, 0, 0.62, 1.05, 0.66, pants);            // coxa/perna
-      partE(par, 0, 0.95 - bob, s * 0.34, 0, sw, 0.12, -0.18, 0, 0.5, 0.62, 0.56, [0.12, 0.13, 0.14]);   // joelheira
-      part(par, 0, 0.95 - bob, s * 0.34, 0, sw, 0.14, -0.9, 0, 0.82, 0.34, 0.74, BOOT);            // bota
+    var firing = now - p.flashAt < 70, s, z;
+    gHi = big || Math.hypot(p.x - cam.x, p.y - cam.z) < 34;
+    var hipY = 1.4 - bob;
+    // pernas (coxa + canela camufladas), joelheira e coturno
+    for (s = -1; s <= 1; s += 2) {
+      z = s * 0.38;
+      var t1 = s * swing, t2 = t1 * 0.35 - Math.abs(swing) * 0.45;
+      var kx = Math.sin(t1) * 0.58, ky = hipY - Math.cos(t1) * 0.58;
+      var fx = kx + Math.sin(t2) * 0.55, fy = ky - Math.cos(t2) * 0.55;
+      limb(par, 0, hipY, z, kx, ky, z, 0.8, WHITE, 11);
+      limb(par, kx, ky, z, fx, fy, z, 0.64, WHITE, 12);
+      pe(par, kx + 0.3, ky - 0.02, z, 0.34, 0.5, 0.56, BLK);
+      pb(par, fx + 0.22, Math.max(0.3, fy + 0.02), z, 1.0, 0.62, 0.7, BOOT);
+      pb(par, fx + 0.26, Math.max(0.06, fy - 0.26), z, 1.08, 0.1, 0.76, [0.04, 0.04, 0.05], 0);
+      pb(par, fx + 0.72, Math.max(0.34, fy + 0.04), z, 0.06, 0.34, 0.4, [0.3, 0.3, 0.33], 0);
     }
-    pe(par, 0, 1.45, 0, 1.0, 1.35, 1.55, col);                                                       // torso
-    pe(par, 0.05, 1.6, 0, 1.08, 0.95, 1.62, VT);                                                     // colete
-    pe(par, 0.55, 1.35, -0.42, 0.28, 0.36, 0.4, VEST2); pe(par, 0.55, 1.35, 0, 0.28, 0.36, 0.4, VEST2); pe(par, 0.55, 1.35, 0.42, 0.28, 0.36, 0.4, VEST2);
-    pb(par, 0.56, 1.62, 0, 0.1, 0.5, 0.5, [0.52, 0.53, 0.56], 0);
-    pe(par, 0, 1.0, 0, 1.0, 0.3, 1.5, BOOT);
-    pe(par, 0.45, 1.0, -0.62, 0.36, 0.38, 0.34, OD); pe(par, 0.45, 1.0, 0.62, 0.36, 0.38, 0.34, OD);
-    pe(par, -0.72, 1.75, 0, 0.62, 1.15, 1.2, OD); pe(par, -0.74, 1.05, 0, 0.66, 0.34, 1.24, [0.12, 0.13, 0.12]); pb(par, -1.08, 1.8, 0, 0.1, 0.55, 0.7, mulc(col, 0.8));
-    pe(par, 0, 2.1, -0.82, 0.62, 0.42, 0.56, mulc(col, 0.6)); pe(par, 0, 2.1, 0.82, 0.62, 0.42, 0.56, mulc(col, 0.6));
-    pe(par, 0, 2.5, 0, 0.62, 0.34, 0.66, VT);                                                        // pescoço/gola
-    pe(par, 0.04, 2.95, 0, 1.15, 1.2, 1.2, [0.09, 0.10, 0.11]);                                      // balaclava
-    pb(par, 0.6, 3.0, 0, 0.08, 0.26, 0.88, SK);
-    pe(par, 0.62, 3.0, -0.24, 0.14, 0.2, 0.22, [1, 1, 1], 0); pe(par, 0.62, 3.0, 0.24, 0.14, 0.2, 0.22, [1, 1, 1], 0);
-    pe(par, 0.68, 3.0, -0.24, 0.1, 0.12, 0.12, [0.05, 0.05, 0.06], 0); pe(par, 0.68, 3.0, 0.24, 0.1, 0.12, 0.12, [0.05, 0.05, 0.06], 0);
-    pe(par, 0, 3.42, 0, 1.42, 0.82, 1.46, helm);                                                     // capacete
-    pb(par, 0.62, 3.2, 0, 0.12, 0.2, 1.2, mulc(helm, 0.5));                                          // aba
-    pe(par, 0, 3.0, -0.74, 0.6, 0.5, 0.2, [0.11, 0.12, 0.13]); pe(par, 0, 3.0, 0.74, 0.6, 0.5, 0.2, [0.11, 0.12, 0.13]);   // fones
-    pb(par, 0.0, 3.82, 0, 1.0, 0.1, 0.34, col);
-    pb(par, 0.6, 3.62, 0, 0.3, 0.22, 0.4, [0.12, 0.12, 0.14]); pb(par, 0.78, 3.62, 0, 0.08, 0.12, 0.2, [0.3, 0.9, 0.5], 0);
+    // quadril, cinto tático, coldre e porta-carregadores
+    pe(par, 0, 1.5, 0, 1.0, 0.7, 1.55, WHITE, 1, 13);
+    pb(par, 0, 1.72, 0, 1.06, 0.18, 1.62, BLK);
+    pb(par, 0.54, 1.72, 0, 0.1, 0.16, 0.2, [0.7, 0.62, 0.3], 0);
+    pb(par, 0.5, 1.72, -0.5, 0.3, 0.34, 0.34, BLK); pb(par, 0.5, 1.72, 0.5, 0.3, 0.34, 0.34, BLK);
+    pb(par, 0.04, 1.34, 0.76, 0.42, 0.7, 0.22, BLK);
+    // torso camuflado + colete tático com placas
+    pe(par, 0, 2.15, 0, 1.0, 1.6, 1.56, WHITE, 1, 14);
+    pe(par, 0.04, 2.2, 0, 1.14, 1.15, 1.66, VT);
+    pb(par, 0.6, 2.28, 0, 0.12, 0.82, 0.98, PLATE); pb(par, -0.52, 2.28, 0, 0.12, 0.82, 0.98, PLATE);
+    pb(par, 0.67, 1.92, -0.46, 0.22, 0.34, 0.36, BLK); pb(par, 0.67, 1.92, 0, 0.22, 0.34, 0.36, BLK); pb(par, 0.67, 1.92, 0.46, 0.22, 0.34, 0.36, BLK);
+    pb(par, 0.68, 2.55, 0, 0.06, 0.18, 0.62, col, 0);
+    pb(par, 0.62, 2.7, -0.52, 0.22, 0.4, 0.2, BLK); pb(par, 0.62, 3.02, -0.52, 0.04, 0.5, 0.04, BLK);
+    pe(par, 0.02, 2.95, 0, 0.84, 0.42, 1.0, VT);
+    // ombreiras coladas ao torso
+    for (s = -1; s <= 1; s += 2) {
+      pe(par, 0, 2.68, s * 0.8, 0.74, 0.54, 0.74, BLK);
+      pb(par, 0, 2.94, s * 0.8, 0.5, 0.06, 0.52, col, 0);
+    }
+    // pescoço, cabeça com balaclava e capacete SWAT
+    pe(par, 0.02, 3.1, 0, 0.72, 0.6, 0.72, BLK);
+    pe(par, 0.05, 3.5, 0, 1.12, 1.18, 1.12, BLK);
+    pb(par, 0.57, 3.44, 0, 0.08, 0.24, 0.8, SKIN);
+    pe(par, 0.6, 3.44, -0.24, 0.14, 0.2, 0.22, [1, 1, 1], 0); pe(par, 0.6, 3.44, 0.24, 0.14, 0.2, 0.22, [1, 1, 1], 0);
+    pe(par, 0.67, 3.44, -0.24, 0.1, 0.12, 0.12, [0.05, 0.05, 0.06], 0); pe(par, 0.67, 3.44, 0.24, 0.1, 0.12, 0.12, [0.05, 0.05, 0.06], 0);
+    pb(par, 0.57, 3.14, 0, 0.05, 0.2, 0.5, [0.86, 0.86, 0.82], 0);
+    pe(par, 0, 3.96, 0, 1.36, 0.8, 1.4, HELM);
+    pe(par, 0.0, 4.08, 0, 1.38, 0.6, 1.42, WHITE, 1, 15);
+    pb(par, 0.1, 3.9, -0.7, 0.8, 0.12, 0.1, [0.3, 0.3, 0.33]); pb(par, 0.1, 3.9, 0.7, 0.8, 0.12, 0.1, [0.3, 0.3, 0.33]);
+    pb(par, 0.64, 3.74, 0, 0.14, 0.3, 1.08, BLK); pb(par, 0.72, 3.74, 0, 0.05, 0.22, 0.96, [0.15, 0.36, 0.52], 0);
+    pb(par, 0.68, 4.12, 0, 0.24, 0.24, 0.3, BLK); pb(par, 0.82, 4.12, 0, 0.08, 0.14, 0.2, [0.3, 0.95, 0.5], 0);
+    pb(par, 0.0, 4.28, 0, 1.0, 0.1, 0.3, col, 0);
+    pe(par, 0, 3.5, -0.6, 0.6, 0.64, 0.3, BLK); pe(par, 0, 3.5, 0.6, 0.6, 0.64, 0.3, BLK);
+    pb(par, 0.32, 3.2, -0.5, 0.06, 0.5, 0.06, BLK); pb(par, 0.32, 3.2, 0.5, 0.06, 0.5, 0.06, BLK);
+    // mochila camuflada com rolo e bolsos
+    pe(par, -0.9, 2.2, 0, 0.82, 1.55, 1.28, WHITE, 1, 16);
+    pe(par, -0.92, 3.05, 0, 0.52, 0.52, 1.36, [0.34, 0.3, 0.2]);
+    pe(par, -0.92, 1.95, -0.68, 0.6, 0.72, 0.36, WHITE, 1, 17); pe(par, -0.92, 1.95, 0.68, 0.6, 0.72, 0.36, WHITE, 1, 18);
+    pb(par, -1.32, 2.3, 0, 0.06, 0.42, 0.5, col, 0);
+    // braços (ombro, cotovelo, mão) e luvas
+    var sy = 2.58, Sz = 0.84, i2, hx, hy, hz, ex, ey, ez, sd;
     if (melee) {
       var t = (now - (p.swingAt || -1e9)) / 260, ang = 0.5;
       if (t >= 0 && t < 1) ang = 1.15 - t * 2.3;
-      // braço esquerdo em guarda, direito com a arma
-      partE(par, 0.1, 1.72, -0.85, -0.5, 0, 0.7, -0.05, 0, 1.3, 0.40, 0.40, col); pe(par, 1.0, 1.72, -0.55, 0.35, 0.38, 0.38, GLOVE);
-      partE(par, 0.1, 1.72, 0.85, ang, 0, 0.72, -0.05, 0, 1.45, 0.40, 0.40, col);
-      partE(par, 0.1, 1.72, 0.85, ang, 0, 1.45, -0.05, 0, 0.35, 0.38, 0.38, GLOVE);
+      hx = 0.1 + Math.cos(ang) * 1.5; hy = 1.72; hz = 0.85 - Math.sin(ang) * 1.5;
+      limb(par, 0.05, sy, Sz, (0.05 + hx) / 2 - 0.1, (sy + hy) / 2 - 0.35, (Sz + hz) / 2 + 0.25, 0.62, WHITE, 19); limb(par, (0.05 + hx) / 2 - 0.1, (sy + hy) / 2 - 0.35, (Sz + hz) / 2 + 0.25, hx, hy, hz, 0.56, WHITE, 20);
+      pe(par, hx, hy, hz, 0.48, 0.46, 0.46, GLOVE);
+      limb(par, 0.05, sy, -Sz, 0.55, 2.0, -0.95, 0.62, WHITE, 21); limb(par, 0.55, 2.0, -0.95, 1.0, 1.72, -0.55, 0.56, WHITE, 22);
+      pe(par, 1.0, 1.72, -0.55, 0.48, 0.46, 0.46, GLOVE);
       var ca = Math.cos(ang), sa = Math.sin(ang);
-      // arma presa na mão (gira junto com o braço)
       BM2[0] = ca; BM2[1] = 0; BM2[2] = -sa; BM2[3] = 0; BM2[4] = 0; BM2[5] = 1; BM2[6] = 0; BM2[7] = 0; BM2[8] = sa; BM2[9] = 0; BM2[10] = ca; BM2[11] = 0;
       BM2[12] = 0.1; BM2[13] = 1.72; BM2[14] = 0.85; BM2[15] = 1;
       mMul(SM, par, BM2);
       drawMelee(SM, w, 1.5, -0.02, 0);
     } else if (w === 0) {
       for (var h = -1; h <= 1; h += 2) {
-        var z = h * 0.85;
-        pe(par, 0.6, 1.62, z, 1.2, 0.46, 0.46, col);
-        pe(par, 1.2, 1.62, z, 0.35, 0.38, 0.38, GLOVE);
-        pb(par, 1.6, 1.70, z, 0.70, 0.30, 0.24, K_ST); pb(par, 1.65, 1.88, z, 0.60, 0.14, 0.20, K_BL); pb(par, 1.35, 1.45, z, 0.22, 0.36, 0.22, K_BL);
-        if (firing && (p.hand ? 1 : -1) === h) pb(par, MUZZLE[0] + 0.15, 1.78, z, 0.5, 0.5, 0.5, FLASHC, 0);
+        z = h * 0.55;
+        limb(par, 0.05, sy, h * Sz, 0.6, 2.05, h * 0.78, 0.62, WHITE, 23 + h); limb(par, 0.6, 2.05, h * 0.78, 1.35, 1.78, z, 0.56, WHITE, 25 + h);
+        pe(par, 1.4, 1.74, z, 0.5, 0.46, 0.46, GLOVE);
+        pb(par, 1.8, 1.8, z, 0.7, 0.3, 0.24, K_ST); pb(par, 1.85, 1.98, z, 0.6, 0.14, 0.2, K_BL); pb(par, 1.55, 1.55, z, 0.22, 0.36, 0.22, K_BL);
+        if (firing && (p.hand ? 1 : -1) === h) pb(par, MUZZLE[0] + 0.15, 1.88, z, 0.5, 0.5, 0.5, FLASHC, 0);
       }
     } else {
-      partE(par, 0.1, 1.72, 0.85, 0.45, 0, 0.72, -0.05, 0, 1.45, 0.40, 0.40, col);
-      partE(par, 0.1, 1.72, 0.85, 0.45, 0, 1.45, -0.05, 0, 0.35, 0.38, 0.38, GLOVE);
-      partE(par, 0.1, 1.72, -0.85, -0.38, 0, 0.98, -0.05, 0, 1.95, 0.40, 0.40, col);
-      partE(par, 0.1, 1.72, -0.85, -0.38, 0, 1.95, -0.05, 0, 0.35, 0.38, 0.38, GLOVE);
+      limb(par, 0.05, sy, Sz, 0.55, 1.95, 0.7, 0.62, WHITE, 27); limb(par, 0.55, 1.95, 0.7, 1.0, 1.52, 0.12, 0.56, WHITE, 28);
+      pe(par, 1.05, 1.5, 0.1, 0.5, 0.46, 0.46, GLOVE);
+      limb(par, 0.05, sy, -Sz, 0.9, 2.0, -0.6, 0.62, WHITE, 29); limb(par, 0.9, 2.0, -0.6, 2.1, 1.62, 0.0, 0.56, WHITE, 30);
+      pe(par, 2.15, 1.6, 0.02, 0.5, 0.46, 0.46, GLOVE);
       drawRifle(par, w);
       if (firing) pb(par, MUZZLE[w] + 0.15, 1.6, 0.05, 0.8, 0.6, 0.6, FLASHC, 0);
     }
@@ -2420,7 +2484,7 @@ function stepBots(r, dt, now) {
       case "shot": {
         if (!inView(m.x, m.y, 30)) return;
         var W0 = WEAPONS[m.w] || WEAPONS[0], n = W0.pel || 1;
-        for (i = 0; i < n; i++) { var a2 = m.a + (n > 1 ? (Math.random() * 2 - 1) * W0.spread : 0); bullets.push({ x: m.x, y: m.y, vx: Math.cos(a2) * W0.spd, vy: Math.sin(a2) * W0.spd, t: W0.life, own: false, w: m.w, from: m.n }); }
+        for (i = 0; i < n; i++) { var a2 = m.a + (n > 1 ? (Math.random() * 2 - 1) * W0.spread : 0); bullets.push({ x: m.x, y: m.y, vx: Math.cos(a2) * W0.spd, vy: Math.sin(a2) * W0.spd, z: MUZ_H, vz: (+m.v || 0) * W0.spd, t: W0.life, own: false, w: m.w, from: m.n }); }
         var s = rem.get(m.n); if (s) { s.flashAt = performance.now(); s.hand ^= 1; }
         gunSfx(m.w, 0.22 * clamp(1 - Math.hypot(m.x - me.x, m.y - me.y) / 60, 0, 1));
         break;
@@ -2604,11 +2668,12 @@ function stepBots(r, dt, now) {
   var GFXINFO = { perf: "Mais FPS: resolução menor, sem grafites e sem vinheta. Bom para celulares antigos.", bal: "Padrão: visual completo com resolução ajustada ao aparelho.", high: "Resolução máxima do aparelho. Use em computadores e celulares potentes." };
   function renderSet() {
     Array.prototype.forEach.call(document.querySelectorAll("#gfxSeg button"), function (b) { b.classList.toggle("on", b.dataset.g === SET.gfx); });
-    $("gfxInfo").textContent = GFXINFO[SET.gfx]; $("vol").value = SET.vol; $("volN").textContent = SET.vol ? SET.vol + "%" : "mudo";
+    $("gfxInfo").textContent = GFXINFO[SET.gfx]; $("autoBtn").textContent = "Atirar sozinho ao mirar no inimigo: " + (SET.auto ? "LIGADO" : "desligado"); $("vol").value = SET.vol; $("volN").textContent = SET.vol ? SET.vol + "%" : "mudo";
   }
   $("bSet").addEventListener("click", function () { renderSet(); openModal("mSet"); });
   $("gfxSeg").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; SET.gfx = b.dataset.g; saveSet(); applyGfx(); renderSet(); });
   $("vol").addEventListener("input", function () { SET.vol = +this.value; saveSet(); renderSet(); sfx("pick", 0.5); });
+  $("autoBtn").addEventListener("click", function () { SET.auto = !SET.auto; saveSet(); renderSet(); });
   applyGfx();
   $("pchip").addEventListener("click", function () {
     $("newname").value = acct.name; $("pmsg").textContent = ""; $("reccode").hidden = true; $("permwarn").hidden = perm;
@@ -2784,6 +2849,7 @@ function stepBots(r, dt, now) {
   }, true);
   var lobbySpin = 0, drag = null;
   function look(dx, dy, k) {
+    if (lockNow) k *= 0.5;
     cam3.yaw += dx * k; cam3.pitch = clamp(cam3.pitch + dy * k * 0.55, 0.12, 0.85);
   }
   var lookTouch = null;
@@ -2861,17 +2927,37 @@ function stepBots(r, dt, now) {
   function canFight() { return screen === "game" && (room.kind === "z" || match.ph === "play" || match.ph === "wait" || match.ph === "cd"); }
   function canHurtByPlayers() { return room.kind !== "z" && match.ph === "play" && !me.out; }
   var grabAt = {};
+  // linha de mira que sai da câmera pelo centro da mira: acha o inimigo (e a altura em que ele seria atingido)
+  function rayAim() {
+    var k = 0.14 * cam.tanH, dx = cam.fwd[0] + cam.up[0] * k, dy = cam.fwd[1] + cam.up[1] * k, dz = cam.fwd[2] + cam.up[2] * k;
+    var hl = Math.hypot(dx, dz) || 1, fx = dx / hl, fz = dz / hl, slope = dy / hl, best = null, tm = myTeam();
+    function test(tx, tz, rad, top) {
+      var rx = tx - cam.x, rz = tz - cam.z, perp = rx * -fz + rz * fx;
+      if (Math.abs(perp) > rad) return;
+      var al = rx * fx + rz * fz - Math.sqrt(rad * rad - perp * perp);
+      if (al < 2) return;
+      var yy = cam.y + slope * al;
+      if (yy < 0 || yy > top) return;
+      if (!best || al < best.al) best = { al: al, x: cam.x + fx * al, z: cam.z + fz * al, y: yy };
+    }
+    if (room.kind === "z" || match.ph === "play") rem.forEach(function (s, id) { var r = ros.get(id); if (room.kind !== "z" && r && r.tm === tm) return; test(s.x, s.y, 0.95, TOP_Y); });
+    zom.forEach(function (z) { test(z.x, z.y, 1.1, 3.6); });
+    return best;
+  }
   function shoot(aim) {
     var wi = me.g, W0 = WEAPONS[wi], n = W0.pel || 1, now = performance.now();
     var lat = wi === 0 ? (me.hand ? 0.6 : -0.6) : 0;
-    var bx = me.x + Math.cos(aim) * 1.4 - Math.sin(aim) * lat, by = me.y + Math.sin(aim) * 1.4 + Math.cos(aim) * lat;
+    var bx = me.x + Math.cos(me.a) * 1.4 - Math.sin(me.a) * lat, by = me.y + Math.sin(me.a) * 1.4 + Math.cos(me.a) * lat;
+    var rb = rayAim(), vr = 0;
+    if (rb) { var hd = Math.hypot(rb.x - bx, rb.z - by) || 1; aim = Math.atan2(rb.z - by, rb.x - bx); vr = (rb.y - MUZ_H) / hd; }
+    vr = clamp(vr, -0.6, 0.6);
     for (var i = 0; i < n; i++) {
-      var a = aim + (Math.random() * 2 - 1) * W0.spread;
-      bullets.push({ x: bx, y: by, vx: Math.cos(a) * W0.spd, vy: Math.sin(a) * W0.spd, t: W0.life, own: true, w: wi, from: me.nid });
+      var a = aim + (Math.random() * 2 - 1) * W0.spread, vv = vr + (n > 1 ? (Math.random() * 2 - 1) * 0.05 : 0);
+      bullets.push({ x: bx, y: by, vx: Math.cos(a) * W0.spd, vy: Math.sin(a) * W0.spd, z: MUZ_H, vz: vv * W0.spd, t: W0.life, own: true, w: wi, from: me.nid });
     }
     me.flashAt = now; me.hand ^= 1;
     gunSfx(wi, 0.2);
-    send({ t: "shot", x: Math.round(bx * 100) / 100, y: Math.round(by * 100) / 100, a: Math.round(aim * 1000) / 1000 });
+    send({ t: "shot", x: Math.round(bx * 100) / 100, y: Math.round(by * 100) / 100, a: Math.round(aim * 1000) / 1000, v: Math.round(vr * 100) / 100 });
   }
   function meleeSwing(aim) {
     me.swingAt = performance.now(); sfx("melee", 0.25);
@@ -2939,6 +3025,20 @@ function stepBots(r, dt, now) {
     return best;
   }
 
+  var lockNow = false, hitMark = { t: -9, hs: false };
+  function findTarget(maxA, maxD) {
+    var best = null, bs = 1e9, tm = myTeam();
+    function c(x, y) {
+      var dx = x - me.x, dy = y - me.y, d = Math.hypot(dx, dy); if (d > maxD || d < 1) return;
+      var an = Math.atan2(dy, dx), df = angDiff(cam3.yaw, an);
+      if (Math.abs(df) > maxA) return;
+      var sc = Math.abs(df) * 20 + d * 0.05;
+      if (sc < bs) { bs = sc; best = { an: an, diff: df, d: d }; }
+    }
+    if (room.kind === "z" || match.ph === "play") rem.forEach(function (s, id) { var r = ros.get(id); if (room.kind !== "z" && r && r.tm === tm) return; c(s.x, s.y); });
+    zom.forEach(function (z) { c(z.x, z.y); });
+    return best;
+  }
   var sendT = 0;
   function update(dt, now) {
     var i, k;
@@ -2964,9 +3064,14 @@ function stepBots(r, dt, now) {
         var moved = Math.hypot(me.x - ox, me.y - oy);
         me.mov = moved > 0.002; if (me.mov) me.phase += moved * 1.5;
 
-        var firing = (mouse.down || keys.has("Space") || tc.fire) && canFight();
+        // celular: a mira "gruda" no inimigo enquanto você arrasta a tela e atira sozinha ao alinhar
+        var lock = (touchMode && (lookTouch || tc.fire)) ? findTarget(0.26, 44) : null;
+        lockNow = !!lock;
+        if (lock) cam3.yaw += lock.diff * Math.min(1, dt * 5);
+        var autoF = !!(lock && SET.auto && lookTouch && Math.abs(lock.diff) < 0.13);
+        var firing = (mouse.down || keys.has("Space") || tc.fire || autoF) && canFight();
         var isMel = me.act === 1 && me.m >= 0;
-        var aimA = firing && touchMode ? aimAssist(me.a, isMel) : me.a;
+        var aimA = me.a;
         me.cool = Math.max(me.cool - dt, -0.08);
         if (firing && me.cool <= 0) {
           if (isMel) { meleeSwing(aimA); me.cool += 1 / WEAPONS[me.m].rate; }
@@ -3006,21 +3111,36 @@ function stepBots(r, dt, now) {
       var mv = Math.hypot(s.x - px, s.y - py); s.mov = mv > 0.004; if (s.mov) s.phase += mv * 1.2;
     });
 
-    // balas
+    // balas (com altura: cabeça dá mais dano, corpo menos)
     var tm = myTeam(), hurtOK = screen === "game" && me.alive && me.inv <= 0 && canHurtByPlayers();
     for (var b = bullets.length - 1; b >= 0; b--) {
       var bl = bullets[b], dist = Math.hypot(bl.vx, bl.vy) * dt, steps = Math.max(1, Math.ceil(dist / 0.6)), gone = false;
       for (k = 0; k < steps && !gone; k++) {
-        bl.x += bl.vx * dt / steps; bl.y += bl.vy * dt / steps;
-        if (pointHit(bl.x, bl.y)) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.18 }); break; }
+        bl.x += bl.vx * dt / steps; bl.y += bl.vy * dt / steps; bl.z += (bl.vz || 0) * dt / steps;
+        if (bl.z <= 0.05) { gone = true; sparks.push({ x: bl.x, y: bl.y, z: 0.3, t: 0.18 }); break; }
+        var so = SH.solidAt(bl.x, bl.y);
+        if (so && bl.z < so.hg) { gone = true; sparks.push({ x: bl.x, y: bl.y, z: bl.z, t: 0.18 }); break; }
         if (bl.own) {
-          zom.forEach(function (z, id) { if (!gone && Math.abs(z.x - bl.x) < 1.5 && Math.abs(z.y - bl.y) < 1.5 && Math.hypot(z.x - bl.x, z.y - bl.y) < 1.5) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 }); send({ t: "zh", i: id }); } });
-          if (!gone && room.kind !== "z") rem.forEach(function (s, id) { var r = ros.get(id); if (!gone && !(r && r.tm === tm) && Math.hypot(s.x - bl.x, s.y - bl.y) < PR + 0.5) { gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 }); if (r && r.bot && match.ph === "play") send({ t: "ph", n: id }); } });
+          zom.forEach(function (z, id) {
+            if (!gone && Math.hypot(z.x - bl.x, z.y - bl.y) < 1.5 && bl.z > 0 && bl.z < 3.6) {
+              gone = true; sparks.push({ x: bl.x, y: bl.y, z: bl.z, t: 0.2 });
+              var hz = bl.z >= 2.2; send({ t: "zh", i: id, hs: hz ? 1 : 0 }); hitMark.t = performance.now(); hitMark.hs = hz; if (hz) sfx("up", 0.25);
+            }
+          });
+          if (!gone && room.kind !== "z") rem.forEach(function (s, id) {
+            var r = ros.get(id);
+            if (!gone && !(r && r.tm === tm) && Math.hypot(s.x - bl.x, s.y - bl.y) < PR + 0.5 && bl.z > 0 && bl.z < TOP_Y) {
+              gone = true; sparks.push({ x: bl.x, y: bl.y, z: bl.z, t: 0.2 });
+              var hh = bl.z >= HEAD_Y; hitMark.t = performance.now(); hitMark.hs = hh; if (hh) sfx("up", 0.25);
+              if (r && r.bot && match.ph === "play") send({ t: "ph", n: id, hs: hh ? 1 : 0 });
+            }
+          });
         } else if (hurtOK) {
           var rb = ros.get(bl.from);
-          if (!(rb && rb.tm === tm) && Math.hypot(me.x - bl.x, me.y - bl.y) < PR + 0.5) {
-            gone = true; sparks.push({ x: bl.x, y: bl.y, t: 0.2 });
-            hurt(WEAPONS[bl.w].dmg * (1 - dmgReduction()), bl.from);
+          if (!(rb && rb.tm === tm) && Math.hypot(me.x - bl.x, me.y - bl.y) < PR + 0.5 && bl.z > 0 && bl.z < TOP_Y) {
+            gone = true; sparks.push({ x: bl.x, y: bl.y, z: bl.z, t: 0.2 });
+            var hm = bl.z >= HEAD_Y ? HEAD_MUL : BODY_MUL;
+            hurt(WEAPONS[bl.w].dmg * hm * (1 - dmgReduction()), bl.from);
             hurtOK = me.alive && me.inv <= 0;
           }
         }
@@ -3084,11 +3204,11 @@ function stepBots(r, dt, now) {
     }
     for (i = 0; i < bullets.length; i++) {
       var bl = bullets[i];
-      tracer(bl.x, GY + 1.6, bl.y, Math.atan2(bl.vy, bl.vx), 2.2, 0.16, bl.own ? [1.0, 0.95, 0.6] : [1.0, 0.65, 0.4]);
+      tracer(bl.x, bl.z || 1.6, bl.y, Math.atan2(bl.vy, bl.vx), 2.2, 0.16, bl.own ? [1.0, 0.95, 0.6] : [1.0, 0.65, 0.4]);
     }
     for (i = 0; i < sparks.length; i++) {
       var sp = sparks[i], sz = 0.3 + (0.2 - sp.t) * 4;
-      pb(IDM, sp.x, GY + 1.5, sp.y, sz, sz, sz, [1.0, 0.85, 0.4], 0);
+      pb(IDM, sp.x, sp.z || 1.5, sp.y, sz, sz, sz, [1.0, 0.85, 0.4], 0);
     }
     flushDynamic();
   }
@@ -3133,6 +3253,14 @@ function stepBots(r, dt, now) {
       uix.strokeStyle = hot ? "#ff4b4b" : "rgba(255,255,255,0.9)"; uix.lineWidth = 2;
       uix.beginPath(); uix.arc(cxs, cys, 9, 0, 6.2832); uix.stroke();
       uix.fillStyle = hot ? "#ff4b4b" : "#ffd75e"; uix.fillRect(cxs - 1.5, cys - 1.5, 3, 3);
+      var hmA = (performance.now() - hitMark.t) / 260;
+      if (hmA >= 0 && hmA < 1) {
+        uix.strokeStyle = hitMark.hs ? "rgba(255,70,70," + (1 - hmA) + ")" : "rgba(255,255,255," + (1 - hmA) + ")"; uix.lineWidth = hitMark.hs ? 3.5 : 2.5;
+        var q0 = 7 + hmA * 4, q1 = q0 + 8;
+        uix.beginPath(); uix.moveTo(cxs - q0, cys - q0); uix.lineTo(cxs - q1, cys - q1); uix.moveTo(cxs + q0, cys - q0); uix.lineTo(cxs + q1, cys - q1); uix.moveTo(cxs - q0, cys + q0); uix.lineTo(cxs - q1, cys + q1); uix.moveTo(cxs + q0, cys + q0); uix.lineTo(cxs + q1, cys + q1); uix.stroke();
+        if (hitMark.hs) { uix.font = "700 15px Barlow, system-ui, sans-serif"; uix.fillStyle = "rgba(255,90,90," + (1 - hmA) + ")"; uix.fillText("HEADSHOT", cxs, cys + 38); }
+        uix.strokeStyle = "rgba(255,255,255,0.9)"; uix.lineWidth = 2;
+      }
       uix.beginPath(); uix.moveTo(cxs - 18, cys); uix.lineTo(cxs - 12, cys); uix.moveTo(cxs + 12, cys); uix.lineTo(cxs + 18, cys); uix.moveTo(cxs, cys - 18); uix.lineTo(cxs, cys - 12); uix.moveTo(cxs, cys + 12); uix.lineTo(cxs, cys + 18); uix.stroke();
     }
     zom.forEach(function (z) {
@@ -3236,7 +3364,7 @@ function stepBots(r, dt, now) {
   connect();
   requestAnimationFrame(frame);
   if ("serviceWorker" in navigator) window.addEventListener("load", function () { try { navigator.serviceWorker.register("/sw.js").catch(noop); } catch (e) {} });
-  if (TEST) window.__arena = { local: LOCAL, me: me, W: W, H: H, solids: solids, stats: stats, get screen() { return screen; }, get room() { return room; }, get pickups() { return pickups; }, get zom() { return zom; }, get rem() { return rem; }, get match() { return match; }, get glOK() { return glOK; }, get rscale() { return rscale; }, get frames() { return frames; }, hurt: hurt, send: send, dropWs: function () { ws.close(); }, setZoom: function (z) { camZoom = z; }, setView: function (x, y) { me.x = x; me.y = y; } };
+  if (TEST) window.__arena = { cam3: cam3, rayAim: rayAim, findTarget: findTarget, setCamNow: function () { setCameraTPS(me.x, me.y, cam3.yaw, 0); }, local: LOCAL, me: me, W: W, H: H, solids: solids, stats: stats, get screen() { return screen; }, get room() { return room; }, get pickups() { return pickups; }, get zom() { return zom; }, get rem() { return rem; }, get match() { return match; }, get glOK() { return glOK; }, get rscale() { return rscale; }, get frames() { return frames; }, hurt: hurt, send: send, dropWs: function () { ws.close(); }, setZoom: function (z) { camZoom = z; }, setView: function (x, y) { me.x = x; me.y = y; } };
 
 
 })();
